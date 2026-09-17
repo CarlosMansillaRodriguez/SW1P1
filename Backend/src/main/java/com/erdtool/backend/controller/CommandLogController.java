@@ -12,7 +12,7 @@ import java.util.UUID;
 @RestController
 @RequestMapping("/api")
 @RequiredArgsConstructor
-public class CommandLogController {
+public class commandLogController {
     private final CommandLogService commandLogService;
     private final ProjectRepository projectRepository;
     private final UserRepository userRepository;
