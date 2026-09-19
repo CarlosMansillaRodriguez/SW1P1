@@ -1,15 +1,17 @@
 import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { Plus, LogOut, KeyRound } from 'lucide-react';
 import * as projectApi from '../api/projectApi';
 import type { Project } from '../types/models';
 import { useAuth } from '../context/AuthContext';
+import './ProjectsPage.css';
 
 export default function ProjectsPage() {
   const [projects, setProjects] = useState<Project[]>([]);
   const [newName, setNewName] = useState('');
   const [joinCode, setJoinCode] = useState('');
   const navigate = useNavigate();
-  const { logout } = useAuth();
+  const { user, logout } = useAuth();
 
   const load = async () => {
     const data = await projectApi.getMyProjects();
@@ -19,43 +21,79 @@ export default function ProjectsPage() {
   useEffect(() => { load(); }, []);
 
   const handleCreate = async () => {
-    if (!newName) return;
-    await projectApi.createProject(newName, '');
+    if (!newName.trim()) return;
+    await projectApi.createProject(newName.trim(), '');
     setNewName('');
     load();
   };
 
   const handleJoin = async () => {
-    if (!joinCode) return;
-    await projectApi.joinProject(joinCode);
+    if (!joinCode.trim()) return;
+    await projectApi.joinProject(joinCode.trim().toUpperCase());
     setJoinCode('');
     load();
   };
 
   return (
-    <div style={{ maxWidth: 600, margin: '40px auto' }}>
-      <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-        <h2>Mis proyectos</h2>
-        <button onClick={logout}>Cerrar sesión</button>
-      </div>
+    <div className="projects-page">
+      <header className="projects-navbar">
+        <span className="projects-navbar-title">ERDTool</span>
+        <div className="projects-navbar-right">
+          <span className="projects-navbar-user">{user?.name}</span>
+          <button className="btn" onClick={logout}>
+            <LogOut size={14} /> Cerrar sesión
+          </button>
+        </div>
+      </header>
 
-      <div style={{ marginBottom: 16 }}>
-        <input placeholder="Nombre del nuevo proyecto" value={newName} onChange={e => setNewName(e.target.value)} />
-        <button onClick={handleCreate}>Crear</button>
-      </div>
+      <main className="projects-main">
+        <div className="projects-actions">
+          <div className="projects-action-card">
+            <label>Nuevo proyecto</label>
+            <div className="projects-action-row">
+              <input
+                placeholder="Nombre del proyecto"
+                value={newName}
+                onChange={e => setNewName(e.target.value)}
+                onKeyDown={e => e.key === 'Enter' && handleCreate()}
+              />
+              <button className="btn btn-primary" onClick={handleCreate}>
+                <Plus size={14} /> Crear
+              </button>
+            </div>
+          </div>
 
-      <div style={{ marginBottom: 24 }}>
-        <input placeholder="Código de invitación" value={joinCode} onChange={e => setJoinCode(e.target.value)} />
-        <button onClick={handleJoin}>Unirme</button>
-      </div>
+          <div className="projects-action-card">
+            <label>Unirme con código de invitación</label>
+            <div className="projects-action-row">
+              <input
+                placeholder="Ej: A3F9K2"
+                value={joinCode}
+                onChange={e => setJoinCode(e.target.value)}
+                onKeyDown={e => e.key === 'Enter' && handleJoin()}
+              />
+              <button className="btn" onClick={handleJoin}>
+                <KeyRound size={14} /> Unirme
+              </button>
+            </div>
+          </div>
+        </div>
 
-      <ul>
-        {projects.map(p => (
-          <li key={p.id} style={{ marginBottom: 8, cursor: 'pointer' }} onClick={() => navigate(`/projects/${p.id}`)}>
-            <strong>{p.name}</strong> — código: {p.inviteCode}
-          </li>
-        ))}
-      </ul>
+        <h2 className="projects-section-title">Mis proyectos</h2>
+
+        {projects.length === 0 ? (
+          <p className="projects-empty">Todavía no tenés proyectos. Creá uno o unite con un código.</p>
+        ) : (
+          <div className="projects-grid">
+            {projects.map(p => (
+              <button key={p.id} className="project-card" onClick={() => navigate(`/projects/${p.id}`)}>
+                <div className="project-card-name">{p.name}</div>
+                <div className="project-card-code">Código: {p.inviteCode}</div>
+              </button>
+            ))}
+          </div>
+        )}
+      </main>
     </div>
   );
 }

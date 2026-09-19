@@ -1,0 +1,110 @@
+.projects-page {
+  min-height: 100vh;
+  background: var(--color-bg);
+}
+
+.projects-navbar {
+  height: 56px;
+  background: var(--color-surface);
+  border-bottom: 1px solid var(--color-border);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 24px;
+}
+
+.projects-navbar-title {
+  font-weight: 700;
+  font-size: 16px;
+  color: var(--color-primary);
+}
+
+.projects-navbar-right {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.projects-navbar-user {
+  font-size: 13px;
+  color: var(--color-text-muted);
+}
+
+.projects-main {
+  max-width: 880px;
+  margin: 0 auto;
+  padding: 32px 24px;
+}
+
+.projects-actions {
+  display: flex;
+  gap: 16px;
+  margin-bottom: 32px;
+}
+
+.projects-action-card {
+  flex: 1;
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  padding: 14px 16px;
+}
+
+.projects-action-card label {
+  display: block;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--color-text-muted);
+  margin-bottom: 8px;
+}
+
+.projects-action-row { display: flex; gap: 8px; }
+
+.projects-action-row input {
+  flex: 1;
+  padding: 8px 10px;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
+  font-size: 13px;
+}
+
+.projects-section-title {
+  font-size: 15px;
+  font-weight: 600;
+  margin-bottom: 14px;
+}
+
+.projects-empty {
+  color: var(--color-text-muted);
+  font-size: 13px;
+}
+
+.projects-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+  gap: 12px;
+}
+
+.project-card {
+  text-align: left;
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  padding: 16px;
+  cursor: pointer;
+  box-shadow: var(--shadow-sm);
+}
+
+.project-card:hover { border-color: var(--color-primary); }
+
+.project-card-name {
+  font-weight: 600;
+  font-size: 14px;
+  margin-bottom: 6px;
+}
+
+.project-card-code {
+  font-size: 11.5px;
+  color: var(--color-text-muted);
+  font-family: ui-monospace, monospace;
+}

@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState } from 'react';
 import type { MouseEvent } from 'react';
-import { useParams } from 'react-router-dom';
+import { useParams, Link } from 'react-router-dom';
 import {
   ReactFlow,
   Background,
@@ -13,15 +13,17 @@ import {
 } from '@xyflow/react';
 import type { Node, Edge, NodeChange, Connection } from '@xyflow/react';
 import '@xyflow/react/dist/style.css';
-import { getEntities, getRelationships, createEntity, moveEntity } from '../api/diagramApi';
-import { getAttributes, createAttribute } from '../api/attributeApi';
-import { createRelationship, updateRelationship } from '../api/relationshipApi';
+import { getEntities, getRelationships, createEntity, renameEntity, deleteEntity, moveEntity } from '../api/diagramApi';
+import { getAttributes, createAttribute, updateAttribute, deleteAttribute } from '../api/attributeApi';
+import { createRelationship, updateRelationship, deleteRelationship } from '../api/relationshipApi';
 import EntityNode from '../components/EntityNode';
 import Sidebar from '../components/Sidebar';
 import AssociationEdge from '../components/AssociationEdge';
 import AssociationMarkers from '../components/AssociationMarkers';
 import RelationshipEditModal from '../components/RelationshipEditModal';
-import type { AssociationType, DiagramRelationship } from '../types/models';
+import AttributeEditModal from '../components/AttributeEditModal';
+import type { AssociationType, DiagramAttribute, DiagramRelationship } from '../types/models';
+import './DiagramPage.css';
 
 const nodeTypes = { entity: EntityNode };
 const edgeTypes = { association: AssociationEdge };
@@ -54,13 +56,29 @@ export default function DiagramPage() {
   const [edges, setEdges] = useEdgesState<Edge>([]);
   const [activeAssociation, setActiveAssociation] = useState<AssociationType | null>(null);
   const [editingRelationship, setEditingRelationship] = useState<DiagramRelationship | null>(null);
+  const [editingAttribute, setEditingAttribute] = useState<DiagramAttribute | null>(null);
 
   const handleAddAttribute = useCallback(async (entityId: string) => {
     const name = prompt('Nombre del atributo:');
     if (!name) return;
-    const dataType = prompt('Tipo de dato (VARCHAR, INTEGER, BOOLEAN, DATE...):', 'VARCHAR');
+    const dataType = prompt('Tipo de dato (VARCHAR, TEXT, INTEGER, BOOLEAN, DATE, TIMESTAMP, DECIMAL, UUID):', 'VARCHAR');
     if (!dataType) return;
     await createAttribute(entityId, { name, dataType });
+    loadDiagram();
+  }, []);
+
+  const handleRenameEntity = useCallback(async (entityId: string, newName: string) => {
+    await renameEntity(entityId, newName);
+    loadDiagram();
+  }, []);
+
+  const handleDeleteEntity = useCallback(async (entityId: string) => {
+    await deleteEntity(entityId);
+    loadDiagram();
+  }, []);
+
+  const handleDeleteAttribute = useCallback(async (attributeId: string) => {
+    await deleteAttribute(attributeId);
     loadDiagram();
   }, []);
 
@@ -75,13 +93,21 @@ export default function DiagramPage() {
         id: e.id,
         position: { x: e.posX, y: e.posY },
         type: 'entity',
-        data: { label: e.name, attributes, onAddAttribute: () => handleAddAttribute(e.id) },
+        data: {
+          label: e.name,
+          attributes,
+          onAddAttribute: () => handleAddAttribute(e.id),
+          onRename: (newName: string) => handleRenameEntity(e.id, newName),
+          onDeleteEntity: () => handleDeleteEntity(e.id),
+          onEditAttribute: (attribute: DiagramAttribute) => setEditingAttribute(attribute),
+          onDeleteAttribute: (attributeId: string) => handleDeleteAttribute(attributeId),
+        },
       };
     }));
 
     setNodes(nodesWithAttrs);
     setEdges(relationships.map(relationshipToEdge));
-  }, [projectId, setNodes, setEdges, handleAddAttribute]);
+  }, [projectId, setNodes, setEdges, handleAddAttribute, handleRenameEntity, handleDeleteEntity, handleDeleteAttribute]);
 
   useEffect(() => { loadDiagram(); }, [loadDiagram]);
 
@@ -130,6 +156,26 @@ export default function DiagramPage() {
     setEditingRelationship(null);
   };
 
+  const handleDeleteRelationship = async () => {
+    if (!editingRelationship) return;
+    await deleteRelationship(editingRelationship.id);
+    setEdges((eds: Edge[]) => eds.filter(e => e.id !== editingRelationship.id));
+    setEditingRelationship(null);
+  };
+
+  const handleSaveAttribute = async (changes: Partial<DiagramAttribute>) => {
+    if (!editingAttribute) return;
+    await updateAttribute(editingAttribute.id, changes);
+    setEditingAttribute(null);
+    loadDiagram();
+  };
+
+  const handleDeleteAttributeFromModal = async () => {
+    if (!editingAttribute) return;
+    await handleDeleteAttribute(editingAttribute.id);
+    setEditingAttribute(null);
+  };
+
   const handleAddEntity = async () => {
     if (!projectId) return;
     const name = prompt('Nombre de la nueva tabla:');
@@ -139,28 +185,34 @@ export default function DiagramPage() {
   };
 
   return (
-    <div style={{ width: '100vw', height: '100vh', display: 'flex' }}>
+    <div className="diagram-layout">
       <AssociationMarkers />
       <Sidebar
         onAddEntity={handleAddEntity}
         activeAssociation={activeAssociation}
         onSelectAssociation={setActiveAssociation}
       />
-      <div style={{ flex: 1, position: 'relative' }}>
-        <ReactFlow
-          nodes={nodes}
-          edges={edges}
-          nodeTypes={nodeTypes}
-          edgeTypes={edgeTypes}
-          onNodesChange={onNodesChange}
-          onConnect={onConnect}
-          onEdgeDoubleClick={onEdgeDoubleClick}
-          fitView
-        >
-          <Background />
-          <Controls />
-          <MiniMap />
-        </ReactFlow>
+      <div className="diagram-canvas">
+        <div className="diagram-topbar">
+          <span className="diagram-title">Diagramador ER</span>
+          <Link to="/projects" className="btn">Volver a proyectos</Link>
+        </div>
+        <div className="diagram-flow-wrapper">
+          <ReactFlow
+            nodes={nodes}
+            edges={edges}
+            nodeTypes={nodeTypes}
+            edgeTypes={edgeTypes}
+            onNodesChange={onNodesChange}
+            onConnect={onConnect}
+            onEdgeDoubleClick={onEdgeDoubleClick}
+            fitView
+          >
+            <Background />
+            <Controls />
+            <MiniMap />
+          </ReactFlow>
+        </div>
       </div>
 
       {editingRelationship && (
@@ -168,6 +220,16 @@ export default function DiagramPage() {
           relationship={editingRelationship}
           onClose={() => setEditingRelationship(null)}
           onSave={handleSaveRelationship}
+          onDelete={handleDeleteRelationship}
+        />
+      )}
+
+      {editingAttribute && (
+        <AttributeEditModal
+          attribute={editingAttribute}
+          onClose={() => setEditingAttribute(null)}
+          onSave={handleSaveAttribute}
+          onDelete={handleDeleteAttributeFromModal}
         />
       )}
     </div>

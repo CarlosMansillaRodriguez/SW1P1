@@ -1,6 +1,7 @@
 import { BaseEdge, EdgeLabelRenderer, getBezierPath } from '@xyflow/react';
 import type { EdgeProps } from '@xyflow/react';
 import type { AssociationType } from '../types/models';
+import './AssociationEdge.css';
 
 export interface AssociationEdgeData {
   associationType: AssociationType;
@@ -27,28 +28,26 @@ export default function AssociationEdge({
 
   return (
     <>
-      <BaseEdge id={id} path={edgePath} markerEnd={MARKER_BY_TYPE[edgeData.associationType]} style={{ stroke: '#333', strokeWidth: 1.5 }} />
+      <BaseEdge id={id} path={edgePath} markerEnd={MARKER_BY_TYPE[edgeData.associationType]} style={{ stroke: '#94a3b8', strokeWidth: 1.5 }} />
       <EdgeLabelRenderer>
-        <div style={{
-          position: 'absolute',
-          transform: `translate(-50%, -50%) translate(${labelX}px,${labelY}px)`,
-          background: '#fff', padding: '1px 6px', borderRadius: 4, fontSize: 11,
-          border: '1px solid #ddd', pointerEvents: 'all',
-        }}>
-          {edgeData.verb || ''}
-        </div>
-        <div style={{
-          position: 'absolute',
-          transform: `translate(-120%, -50%) translate(${sourceX}px,${sourceY}px)`,
-          background: '#fff', fontSize: 11, padding: '0 3px',
-        }}>
+        {edgeData.verb && (
+          <div
+            className="association-edge-label"
+            style={{ transform: `translate(-50%, -50%) translate(${labelX}px,${labelY}px)` }}
+          >
+            {edgeData.verb}
+          </div>
+        )}
+        <div
+          className="association-edge-cardinality"
+          style={{ transform: `translate(-140%, -50%) translate(${sourceX}px,${sourceY}px)` }}
+        >
           {edgeData.sourceCardinality}
         </div>
-        <div style={{
-          position: 'absolute',
-          transform: `translate(20%, -50%) translate(${targetX}px,${targetY}px)`,
-          background: '#fff', fontSize: 11, padding: '0 3px',
-        }}>
+        <div
+          className="association-edge-cardinality"
+          style={{ transform: `translate(40%, -50%) translate(${targetX}px,${targetY}px)` }}
+        >
           {edgeData.targetCardinality}
         </div>
       </EdgeLabelRenderer>

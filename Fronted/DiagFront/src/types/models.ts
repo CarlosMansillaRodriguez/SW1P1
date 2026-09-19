@@ -13,6 +13,7 @@ export interface DiagramAttribute {
   foreignKey: boolean;
   nullable: boolean;
   unique: boolean;
+  defaultValue?: string;
 }
 
 export type AssociationType = 'ASSOCIATION' | 'GENERALIZATION' | 'AGGREGATION' | 'COMPOSITION';

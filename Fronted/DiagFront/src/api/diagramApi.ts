@@ -8,6 +8,10 @@ export const createEntity = (projectId: string, name: string) =>
   api.post<DiagramEntity>(`/projects/${projectId}/entities`, { name, posX: 100, posY: 100 })
      .then(r => r.data);
 
+export const renameEntity = (id: string, name: string) =>
+  api.put<DiagramEntity>(`/entities/${id}/rename`, null, { params: { name } })
+     .then(r => r.data);
+
 export const moveEntity = (id: string, posX: number, posY: number) =>
   api.put<DiagramEntity>(`/entities/${id}/move`, null, { params: { posX, posY } })
      .then(r => r.data);
