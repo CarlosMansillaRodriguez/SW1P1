@@ -21,3 +21,17 @@ export interface DiagramRelationship {
   targetEntity: DiagramEntity;
   relationshipType: 'ONE_TO_ONE' | 'ONE_TO_MANY' | 'MANY_TO_MANY';
 }
+
+export interface AuthUser {
+  token: string;
+  userId: string;
+  name: string;
+  email: string;
+}
+
+export interface Project {
+  id: string;
+  name: string;
+  description: string;
+  inviteCode: string;
+}

@@ -28,4 +28,7 @@ public class Project {
 
     @Column(name = "updated_at")
     private LocalDateTime updatedAt = LocalDateTime.now();
+
+    @Column(name = "invite_code", unique = true, nullable = false, length = 8)
+    private String inviteCode;
 }
