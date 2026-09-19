@@ -1,0 +1,6 @@
+ALTER TABLE relationships
+    ADD COLUMN association_type VARCHAR(20) NOT NULL DEFAULT 'ASSOCIATION'
+        CHECK (association_type IN ('ASSOCIATION','GENERALIZATION','AGGREGATION','COMPOSITION'));
+
+ALTER TABLE relationships ADD COLUMN source_cardinality VARCHAR(10) NOT NULL DEFAULT '1';
+ALTER TABLE relationships ADD COLUMN target_cardinality VARCHAR(10) NOT NULL DEFAULT '*';

@@ -33,6 +33,11 @@ public class DiagramRelationshipController {
         return relationshipService.findByProject(projectId);
     }
 
+    @PutMapping("/relationships/{id}")
+    public DiagramRelationship update(@PathVariable UUID id, @RequestBody DiagramRelationship changes) {
+        return relationshipService.update(id, changes);
+    }
+
     @DeleteMapping("/relationships/{id}")
     public void delete(@PathVariable UUID id) {
         relationshipService.delete(id);

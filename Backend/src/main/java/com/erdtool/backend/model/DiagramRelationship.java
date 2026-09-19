@@ -31,5 +31,16 @@ public class DiagramRelationship {
     @Column(name = "relationship_type", nullable = false)
     private RelationshipType relationshipType;
 
+    @Enumerated(EnumType.STRING)
+    @Column(name = "association_type", nullable = false)
+    private AssociationType associationType = AssociationType.ASSOCIATION;
+
+    @Column(name = "source_cardinality", nullable = false)
+    private String sourceCardinality = "1";
+
+    @Column(name = "target_cardinality", nullable = false)
+    private String targetCardinality = "*";
+
     public enum RelationshipType { ONE_TO_ONE, ONE_TO_MANY, MANY_TO_MANY }
+    public enum AssociationType { ASSOCIATION, GENERALIZATION, AGGREGATION, COMPOSITION }
 }

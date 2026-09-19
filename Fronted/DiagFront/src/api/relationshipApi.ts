@@ -1,14 +1,28 @@
 import api from './client';
-import type { DiagramRelationship } from '../types/models';
+import type { DiagramRelationship, AssociationType } from '../types/models';
+
+export interface RelationshipPayload {
+  relationshipType: DiagramRelationship['relationshipType'];
+  associationType: AssociationType;
+  sourceCardinality: string;
+  targetCardinality: string;
+  name?: string;
+}
 
 export const createRelationship = (
   projectId: string,
   sourceEntityId: string,
   targetEntityId: string,
-  relationshipType: DiagramRelationship['relationshipType']
+  payload: RelationshipPayload
 ) =>
   api.post<DiagramRelationship>(
     `/projects/${projectId}/relationships`,
-    { relationshipType },
+    payload,
     { params: { sourceEntityId, targetEntityId } }
   ).then(r => r.data);
+
+export const updateRelationship = (id: string, payload: RelationshipPayload) =>
+  api.put<DiagramRelationship>(`/relationships/${id}`, payload).then(r => r.data);
+
+export const deleteRelationship = (id: string) =>
+  api.delete(`/relationships/${id}`);

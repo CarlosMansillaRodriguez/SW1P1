@@ -20,6 +20,17 @@ public class DiagramRelationshipService {
         return relationshipRepository.findByProjectId(projectId);
     }
 
+    public DiagramRelationship update(UUID id, DiagramRelationship changes) {
+        DiagramRelationship relationship = relationshipRepository.findById(id)
+                .orElseThrow(() -> new RuntimeException("Relación no encontrada: " + id));
+        relationship.setName(changes.getName());
+        relationship.setRelationshipType(changes.getRelationshipType());
+        relationship.setAssociationType(changes.getAssociationType());
+        relationship.setSourceCardinality(changes.getSourceCardinality());
+        relationship.setTargetCardinality(changes.getTargetCardinality());
+        return relationshipRepository.save(relationship);
+    }
+
     public void delete(UUID id) {
         relationshipRepository.deleteById(id);
     }
