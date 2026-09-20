@@ -30,8 +30,10 @@ export default function EntityNode({ data }: { data: EntityNodeData }) {
 
   return (
     <div className="entity-node">
-      <Handle type="target" position={Position.Left} className="entity-node-handle" />
-      <Handle type="source" position={Position.Right} className="entity-node-handle" />
+      <Handle type="source" position={Position.Top} id="top" className="entity-node-handle" />
+      <Handle type="source" position={Position.Right} id="right" className="entity-node-handle" />
+      <Handle type="source" position={Position.Bottom} id="bottom" className="entity-node-handle" />
+      <Handle type="source" position={Position.Left} id="left" className="entity-node-handle" />
 
       <div className="entity-node-header">
         <Hash size={13} />

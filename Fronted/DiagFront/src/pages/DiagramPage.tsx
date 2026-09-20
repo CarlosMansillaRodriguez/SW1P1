@@ -6,6 +6,7 @@ import {
   Background,
   Controls,
   MiniMap,
+  ConnectionMode,
   useNodesState,
   useEdgesState,
   applyNodeChanges,
@@ -15,7 +16,7 @@ import type { Node, Edge, NodeChange, Connection } from '@xyflow/react';
 import '@xyflow/react/dist/style.css';
 import { getEntities, getRelationships, createEntity, renameEntity, deleteEntity, moveEntity } from '../api/diagramApi';
 import { getAttributes, createAttribute, updateAttribute, deleteAttribute } from '../api/attributeApi';
-import { createRelationship, updateRelationship, deleteRelationship } from '../api/relationshipApi';
+import { createRelationship, updateRelationship, deleteRelationship, swapRelationshipDirection } from '../api/relationshipApi';
 import EntityNode from '../components/EntityNode';
 import Sidebar from '../components/Sidebar';
 import AssociationEdge from '../components/AssociationEdge';
@@ -163,6 +164,13 @@ export default function DiagramPage() {
     setEditingRelationship(null);
   };
 
+  const handleSwapRelationship = async () => {
+    if (!editingRelationship) return;
+    const updated = await swapRelationshipDirection(editingRelationship.id);
+    setEdges((eds: Edge[]) => eds.map(e => e.id === updated.id ? relationshipToEdge(updated) : e));
+    setEditingRelationship(null);
+  };
+
   const handleSaveAttribute = async (changes: Partial<DiagramAttribute>) => {
     if (!editingAttribute) return;
     await updateAttribute(editingAttribute.id, changes);
@@ -206,6 +214,7 @@ export default function DiagramPage() {
             onNodesChange={onNodesChange}
             onConnect={onConnect}
             onEdgeDoubleClick={onEdgeDoubleClick}
+            connectionMode={ConnectionMode.Loose}
             fitView
           >
             <Background />
@@ -221,6 +230,7 @@ export default function DiagramPage() {
           onClose={() => setEditingRelationship(null)}
           onSave={handleSaveRelationship}
           onDelete={handleDeleteRelationship}
+          onSwap={handleSwapRelationship}
         />
       )}
 

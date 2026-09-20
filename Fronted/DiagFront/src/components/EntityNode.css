@@ -129,8 +129,14 @@
 .entity-node-add:hover { background: #eef2ff; }
 
 .entity-node-handle {
-  width: 8px;
-  height: 8px;
+  width: 9px;
+  height: 9px;
   background: var(--color-primary);
   border: 2px solid white;
+  opacity: 0;
+  transition: opacity 0.12s ease;
+}
+
+.entity-node:hover .entity-node-handle {
+  opacity: 1;
 }

@@ -84,3 +84,9 @@
   padding: 8px 10px;
   margin: -4px 0 12px;
 }
+
+.modal-swap-btn {
+  width: 100%;
+  justify-content: center;
+  margin-bottom: 14px;
+}

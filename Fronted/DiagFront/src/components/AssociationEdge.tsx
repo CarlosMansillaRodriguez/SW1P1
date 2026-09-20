@@ -1,6 +1,7 @@
-import { BaseEdge, EdgeLabelRenderer, getBezierPath } from '@xyflow/react';
+import { BaseEdge, EdgeLabelRenderer, getBezierPath, useInternalNode } from '@xyflow/react';
 import type { EdgeProps } from '@xyflow/react';
 import type { AssociationType } from '../types/models';
+import { getEdgeParams } from '../utils/floatingEdgeUtils';
 import './AssociationEdge.css';
 
 export interface AssociationEdgeData {
@@ -18,12 +19,22 @@ const MARKER_BY_TYPE: Record<AssociationType, string> = {
   COMPOSITION: 'url(#composition-marker)',
 };
 
-export default function AssociationEdge({
-  id, sourceX, sourceY, targetX, targetY, sourcePosition, targetPosition, data,
-}: EdgeProps) {
+export default function AssociationEdge({ id, source, target, data }: EdgeProps) {
+  const sourceNode = useInternalNode(source);
+  const targetNode = useInternalNode(target);
+
+  if (!sourceNode || !targetNode) return null;
+
   const edgeData = data as AssociationEdgeData;
+  const { sx, sy, tx, ty, sourcePos, targetPos } = getEdgeParams(sourceNode, targetNode);
+
   const [edgePath, labelX, labelY] = getBezierPath({
-    sourceX, sourceY, sourcePosition, targetX, targetY, targetPosition,
+    sourceX: sx,
+    sourceY: sy,
+    sourcePosition: sourcePos,
+    targetX: tx,
+    targetY: ty,
+    targetPosition: targetPos,
   });
 
   return (
@@ -40,13 +51,13 @@ export default function AssociationEdge({
         )}
         <div
           className="association-edge-cardinality"
-          style={{ transform: `translate(-140%, -50%) translate(${sourceX}px,${sourceY}px)` }}
+          style={{ transform: `translate(-50%, -130%) translate(${sx}px,${sy}px)` }}
         >
           {edgeData.sourceCardinality}
         </div>
         <div
           className="association-edge-cardinality"
-          style={{ transform: `translate(40%, -50%) translate(${targetX}px,${targetY}px)` }}
+          style={{ transform: `translate(-50%, 30%) translate(${tx}px,${ty}px)` }}
         >
           {edgeData.targetCardinality}
         </div>

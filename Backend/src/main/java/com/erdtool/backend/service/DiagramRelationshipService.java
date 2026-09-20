@@ -34,4 +34,19 @@ public class DiagramRelationshipService {
     public void delete(UUID id) {
         relationshipRepository.deleteById(id);
     }
+
+        public DiagramRelationship swapDirection(UUID id) {
+        DiagramRelationship relationship = relationshipRepository.findById(id)
+                .orElseThrow(() -> new RuntimeException("Relación no encontrada: " + id));
+
+        var tempEntity = relationship.getSourceEntity();
+        relationship.setSourceEntity(relationship.getTargetEntity());
+        relationship.setTargetEntity(tempEntity);
+
+        String tempCardinality = relationship.getSourceCardinality();
+        relationship.setSourceCardinality(relationship.getTargetCardinality());
+        relationship.setTargetCardinality(tempCardinality);
+
+        return relationshipRepository.save(relationship);
+    }
 }

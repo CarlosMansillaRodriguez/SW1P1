@@ -26,3 +26,6 @@ export const updateRelationship = (id: string, payload: RelationshipPayload) =>
 
 export const deleteRelationship = (id: string) =>
   api.delete(`/relationships/${id}`);
+
+export const swapRelationshipDirection = (id: string) =>
+  api.put<DiagramRelationship>(`/relationships/${id}/swap`).then(r => r.data);

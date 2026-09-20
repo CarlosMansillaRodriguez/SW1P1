@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { ArrowLeftRight } from 'lucide-react';
 import type { AssociationType, DiagramRelationship } from '../types/models';
 import './RelationshipEditModal.css';
 
@@ -7,6 +8,7 @@ interface Props {
   onClose: () => void;
   onSave: (payload: { associationType: AssociationType; sourceCardinality: string; targetCardinality: string; name: string; relationshipType: DiagramRelationship['relationshipType'] }) => void;
   onDelete: () => void;
+  onSwap: () => void;
 }
 
 const CARDINALITY_OPTIONS = ['0..1', '1', '0..*', '1..*', '*'];
@@ -22,7 +24,7 @@ const RELATIONSHIP_TYPE_LABELS: Record<DiagramRelationship['relationshipType'], 
   MANY_TO_MANY: 'Muchos a muchos',
 };
 
-export default function RelationshipEditModal({ relationship, onClose, onSave, onDelete }: Props) {
+export default function RelationshipEditModal({ relationship, onClose, onSave, onDelete, onSwap }: Props) {
   const [associationType, setAssociationType] = useState<AssociationType>(relationship.associationType);
   const [relationshipType, setRelationshipType] = useState(relationship.relationshipType);
   const [sourceCardinality, setSourceCardinality] = useState(relationship.sourceCardinality);
@@ -33,6 +35,12 @@ export default function RelationshipEditModal({ relationship, onClose, onSave, o
     <div className="modal-overlay" onClick={onClose}>
       <div className="modal-card" onClick={e => e.stopPropagation()}>
         <h3 className="modal-title">Editar relación</h3>
+
+        {associationType !== 'ASSOCIATION' && (
+          <button className="btn modal-swap-btn" onClick={onSwap}>
+            <ArrowLeftRight size={14} /> Invertir dirección de la flecha
+          </button>
+        )}
 
         <label className="modal-field">
           Tipo de asociación

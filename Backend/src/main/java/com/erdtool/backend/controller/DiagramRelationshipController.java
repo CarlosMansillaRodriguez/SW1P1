@@ -42,4 +42,9 @@ public class DiagramRelationshipController {
     public void delete(@PathVariable UUID id) {
         relationshipService.delete(id);
     }
+
+    @PutMapping("/relationships/{id}/swap")
+    public DiagramRelationship swapDirection(@PathVariable UUID id) {
+        return relationshipService.swapDirection(id);
+    }
 }
