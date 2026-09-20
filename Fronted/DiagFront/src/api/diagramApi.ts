@@ -21,3 +21,6 @@ export const deleteEntity = (id: string) =>
 
 export const getRelationships = (projectId: string) =>
   api.get<DiagramRelationship[]>(`/projects/${projectId}/relationships`).then(r => r.data);
+
+export const getEntityById = (id: string) =>
+  api.get<DiagramEntity>(`/entities/${id}`).then(r => r.data);

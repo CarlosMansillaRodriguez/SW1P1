@@ -15,7 +15,7 @@ import {
 } from '@xyflow/react';
 import type { Node, Edge, NodeChange, Connection } from '@xyflow/react';
 import '@xyflow/react/dist/style.css';
-import { getEntities, getRelationships, createEntity, renameEntity, deleteEntity, moveEntity } from '../api/diagramApi';
+import { getEntities, getRelationships, createEntity, renameEntity, deleteEntity, moveEntity, getEntityById } from '../api/diagramApi';
 import { getAttributes, createAttribute, updateAttribute, deleteAttribute } from '../api/attributeApi';
 import { createRelationship, updateRelationship, deleteRelationship, swapRelationshipDirection } from '../api/relationshipApi';
 import { exportArchitect, importArchitect } from '../api/architectApi';
@@ -25,7 +25,8 @@ import AssociationEdge from '../components/AssociationEdge';
 import AssociationMarkers from '../components/AssociationMarkers';
 import RelationshipEditModal from '../components/RelationshipEditModal';
 import AttributeEditModal from '../components/AttributeEditModal';
-import type { AssociationType, DiagramAttribute, DiagramRelationship } from '../types/models';
+import AiChatPanel from '../components/AiChatPanel';
+import type { AiCommandResult, AssociationType, DiagramAttribute, DiagramRelationship } from '../types/models';
 import './DiagramPage.css';
 
 const nodeTypes = { entity: EntityNode };
@@ -86,6 +87,21 @@ export default function DiagramPage() {
     loadDiagram();
   }, []);
 
+  const buildNode = useCallback((entity: { id: string; name: string; posX: number; posY: number }, attributes: DiagramAttribute[]): Node => ({
+    id: entity.id,
+    position: { x: entity.posX, y: entity.posY },
+    type: 'entity',
+    data: {
+      label: entity.name,
+      attributes,
+      onAddAttribute: () => handleAddAttribute(entity.id),
+      onRename: (newName: string) => handleRenameEntity(entity.id, newName),
+      onDeleteEntity: () => handleDeleteEntity(entity.id),
+      onEditAttribute: (attribute: DiagramAttribute) => setEditingAttribute(attribute),
+      onDeleteAttribute: (attributeId: string) => handleDeleteAttribute(attributeId),
+    },
+  }), [handleAddAttribute, handleRenameEntity, handleDeleteEntity, handleDeleteAttribute]);
+
   const loadDiagram = useCallback(async () => {
     if (!projectId) return;
     const entities = await getEntities(projectId);
@@ -93,27 +109,37 @@ export default function DiagramPage() {
 
     const nodesWithAttrs = await Promise.all(entities.map(async (e) => {
       const attributes = await getAttributes(e.id);
-      return {
-        id: e.id,
-        position: { x: e.posX, y: e.posY },
-        type: 'entity',
-        data: {
-          label: e.name,
-          attributes,
-          onAddAttribute: () => handleAddAttribute(e.id),
-          onRename: (newName: string) => handleRenameEntity(e.id, newName),
-          onDeleteEntity: () => handleDeleteEntity(e.id),
-          onEditAttribute: (attribute: DiagramAttribute) => setEditingAttribute(attribute),
-          onDeleteAttribute: (attributeId: string) => handleDeleteAttribute(attributeId),
-        },
-      };
+      return buildNode(e, attributes);
     }));
 
     setNodes(nodesWithAttrs);
     setEdges(relationships.map(relationshipToEdge));
-  }, [projectId, setNodes, setEdges, handleAddAttribute, handleRenameEntity, handleDeleteEntity, handleDeleteAttribute]);
+  }, [projectId, setNodes, setEdges, buildNode]);
 
   useEffect(() => { loadDiagram(); }, [loadDiagram]);
+
+  // Aplica el resultado de un comando de IA (texto, voz o foto) sin recargar todo el diagrama:
+  // solo refresca las tablas que realmente cambiaron, y las relaciones solo si hubo cambios en ellas.
+  const applyAiResult = useCallback(async (result: AiCommandResult) => {
+    if (result.deletedEntityIds.length > 0) {
+      setNodes((nds: Node[]) => nds.filter(n => !result.deletedEntityIds.includes(n.id)));
+    }
+
+    for (const entityId of result.affectedEntityIds) {
+      const entity = await getEntityById(entityId);
+      const attributes = await getAttributes(entityId);
+      const node = buildNode(entity, attributes);
+      setNodes((nds: Node[]) => {
+        const exists = nds.some(n => n.id === entity.id);
+        return exists ? nds.map(n => n.id === entity.id ? node : n) : [...nds, node];
+      });
+    }
+
+    if (result.relationshipsChanged && projectId) {
+      const relationships = await getRelationships(projectId);
+      setEdges(relationships.map(relationshipToEdge));
+    }
+  }, [projectId, setNodes, setEdges, buildNode]);
 
   const onNodesChange = useCallback((changes: NodeChange[]) => {
     setNodes((nds: Node[]) => applyNodeChanges(changes, nds));
@@ -257,6 +283,7 @@ export default function DiagramPage() {
             <MiniMap />
           </ReactFlow>
         </div>
+        {projectId && <AiChatPanel projectId={projectId} onResult={applyAiResult} />}
       </div>
 
       {editingRelationship && (

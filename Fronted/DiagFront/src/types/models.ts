@@ -42,3 +42,10 @@ export interface Project {
   description: string;
   inviteCode: string;
 }
+
+export interface AiCommandResult {
+  reply: string;
+  affectedEntityIds: string[];
+  deletedEntityIds: string[];
+  relationshipsChanged: boolean;
+}
