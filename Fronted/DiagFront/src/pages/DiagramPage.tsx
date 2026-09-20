@@ -1,6 +1,7 @@
-import { useCallback, useEffect, useState } from 'react';
-import type { MouseEvent } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
+import type { ChangeEvent, MouseEvent } from 'react';
 import { useParams, Link } from 'react-router-dom';
+import { Download, Upload } from 'lucide-react';
 import {
   ReactFlow,
   Background,
@@ -17,6 +18,7 @@ import '@xyflow/react/dist/style.css';
 import { getEntities, getRelationships, createEntity, renameEntity, deleteEntity, moveEntity } from '../api/diagramApi';
 import { getAttributes, createAttribute, updateAttribute, deleteAttribute } from '../api/attributeApi';
 import { createRelationship, updateRelationship, deleteRelationship, swapRelationshipDirection } from '../api/relationshipApi';
+import { exportArchitect, importArchitect } from '../api/architectApi';
 import EntityNode from '../components/EntityNode';
 import Sidebar from '../components/Sidebar';
 import AssociationEdge from '../components/AssociationEdge';
@@ -58,6 +60,7 @@ export default function DiagramPage() {
   const [activeAssociation, setActiveAssociation] = useState<AssociationType | null>(null);
   const [editingRelationship, setEditingRelationship] = useState<DiagramRelationship | null>(null);
   const [editingAttribute, setEditingAttribute] = useState<DiagramAttribute | null>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   const handleAddAttribute = useCallback(async (entityId: string) => {
     const name = prompt('Nombre del atributo:');
@@ -192,6 +195,23 @@ export default function DiagramPage() {
     loadDiagram();
   };
 
+  const handleExportArchitect = async () => {
+    if (!projectId) return;
+    await exportArchitect(projectId);
+  };
+
+  const handleImportFileChange = async (e: ChangeEvent<HTMLInputElement>) => {
+    if (!projectId || !e.target.files?.[0]) return;
+    const file = e.target.files[0];
+    if (!confirm('Se van a agregar las tablas y relaciones del archivo a este proyecto. ¿Continuar?')) {
+      e.target.value = '';
+      return;
+    }
+    await importArchitect(projectId, file);
+    e.target.value = '';
+    loadDiagram();
+  };
+
   return (
     <div className="diagram-layout">
       <AssociationMarkers />
@@ -203,7 +223,22 @@ export default function DiagramPage() {
       <div className="diagram-canvas">
         <div className="diagram-topbar">
           <span className="diagram-title">Diagramador ER</span>
-          <Link to="/projects" className="btn">Volver a proyectos</Link>
+          <div className="diagram-topbar-actions">
+            <button className="btn" onClick={handleExportArchitect}>
+              <Download size={14} /> Exportar a Architect
+            </button>
+            <button className="btn" onClick={() => fileInputRef.current?.click()}>
+              <Upload size={14} /> Importar de Architect
+            </button>
+            <input
+              type="file"
+              accept=".architect,.xml"
+              ref={fileInputRef}
+              style={{ display: 'none' }}
+              onChange={handleImportFileChange}
+            />
+            <Link to="/projects" className="btn">Volver a proyectos</Link>
+          </div>
         </div>
         <div className="diagram-flow-wrapper">
           <ReactFlow

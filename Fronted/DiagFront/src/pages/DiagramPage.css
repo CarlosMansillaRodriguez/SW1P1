@@ -39,3 +39,9 @@
   right: 0;
   bottom: 0;
 }
+
+.diagram-topbar-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
