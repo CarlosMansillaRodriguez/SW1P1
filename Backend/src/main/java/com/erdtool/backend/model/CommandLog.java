@@ -1,5 +1,6 @@
 package com.erdtool.backend.model;
-
+import org.hibernate.annotations.JdbcTypeCode;
+import org.hibernate.type.SqlTypes;
 import jakarta.persistence.*;
 import lombok.Getter;
 import lombok.Setter;
@@ -29,6 +30,7 @@ public class CommandLog {
     @Column(name = "raw_input", columnDefinition = "TEXT")
     private String rawInput;
 
+    @JdbcTypeCode(SqlTypes.JSON)
     @Column(name = "parsed_command", columnDefinition = "jsonb", nullable = false)
     private String parsedCommand;
 

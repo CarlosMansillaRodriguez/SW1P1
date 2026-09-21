@@ -10,6 +10,7 @@ import org.springframework.web.client.RestClient;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
+import org.springframework.web.client.HttpServerErrorException;
 
 @Service
 public class GeminiClient {
@@ -40,15 +41,30 @@ public class GeminiClient {
 
         Map<String, Object> body = Map.of(
                 "contents", List.of(Map.of("parts", parts)),
-                "generationConfig", Map.of("responseMimeType", "application/json")
-        );
+                "generationConfig", Map.of("responseMimeType", "application/json"));
 
-        String response = restClient.post()
-                .uri("/v1beta/models/{model}:generateContent?key={key}", model, apiKey)
-                .contentType(MediaType.APPLICATION_JSON)
-                .body(body)
-                .retrieve()
-                .body(String.class);
+        String response = null;
+        int maxAttempts = 3;
+        for (int attempt = 1; attempt <= maxAttempts; attempt++) {
+            try {
+                response = restClient.post()
+                        .uri("/v1beta/models/{model}:generateContent?key={key}", model, apiKey)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .body(body)
+                        .retrieve()
+                        .body(String.class);
+                break;
+            } catch (HttpServerErrorException e) {
+                if (attempt == maxAttempts)
+                    throw e;
+                try {
+                    Thread.sleep(1500L * attempt);
+                } catch (InterruptedException ie) {
+                    Thread.currentThread().interrupt();
+                    throw e;
+                }
+            }
+        }
 
         try {
             JsonNode root = objectMapper.readTree(response);

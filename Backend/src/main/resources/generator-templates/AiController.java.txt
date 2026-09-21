@@ -1,0 +1,26 @@
+package com.generated.backend.ai;
+
+import lombok.RequiredArgsConstructor;
+import org.springframework.http.ResponseEntity;
+import org.springframework.web.bind.annotation.*;
+
+import java.util.Map;
+
+@RestController
+@RequestMapping("/api/ai")
+@RequiredArgsConstructor
+public class AiController {
+    private final AiCommandService aiCommandService;
+
+    public record AiRequest(String text) {}
+
+    @PostMapping("/command")
+    public ResponseEntity<?> command(@RequestBody AiRequest request) {
+        try {
+            return ResponseEntity.ok(aiCommandService.execute(request.text()));
+        } catch (Exception e) {
+            String message = e.getMessage() == null ? "Error al procesar el comando" : e.getMessage();
+            return ResponseEntity.status(500).body(Map.of("error", message));
+        }
+    }
+}

@@ -1,0 +1,51 @@
+package com.generated.backend.ai;
+
+import org.springframework.beans.factory.annotation.Value;
+import org.springframework.http.MediaType;
+import org.springframework.stereotype.Service;
+import org.springframework.web.client.RestClient;
+
+import java.util.List;
+import java.util.Map;
+
+@Service
+public class OllamaClient {
+
+    private final RestClient restClient;
+    private final String model;
+
+    public OllamaClient(@Value("${ollama.url}") String url, @Value("${ollama.model}") String model) {
+        this.restClient = RestClient.create(url);
+        this.model = model;
+    }
+
+    @SuppressWarnings("unchecked")
+    public String generateJson(String systemPrompt, String userText) {
+        Map<String, Object> body = Map.of(
+                "model", model,
+                "stream", false,
+                "format", "json",
+                "options", Map.of("temperature", 0),
+                "messages", List.of(
+                        Map.of("role", "system", "content", systemPrompt),
+                        Map.of("role", "user", "content", userText)
+                )
+        );
+
+        Map<String, Object> response;
+        try {
+            response = restClient.post()
+                    .uri("/api/chat")
+                    .contentType(MediaType.APPLICATION_JSON)
+                    .body(body)
+                    .retrieve()
+                    .body(Map.class);
+        } catch (Exception e) {
+            throw new IllegalStateException("No se pudo usar Ollama (" + e.getMessage()
+                    + "). ¿Está corriendo y descargaste el modelo '" + model + "'?", e);
+        }
+
+        Map<String, Object> message = (Map<String, Object>) response.get("message");
+        return (String) message.get("content");
+    }
+}

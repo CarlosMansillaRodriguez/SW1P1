@@ -1,7 +1,9 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import type { ChangeEvent, MouseEvent } from 'react';
 import { useParams, Link } from 'react-router-dom';
-import { Download, Upload } from 'lucide-react';
+import { Download, Upload, Image as ImageIcon, ChevronDown, Server } from 'lucide-react';
+import { importAiImage } from '../api/aiApi';
+import { downloadGeneratedBackend } from '../api/generatorApi';
 import {
   ReactFlow,
   Background,
@@ -62,6 +64,21 @@ export default function DiagramPage() {
   const [editingRelationship, setEditingRelationship] = useState<DiagramRelationship | null>(null);
   const [editingAttribute, setEditingAttribute] = useState<DiagramAttribute | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const imageInputRef = useRef<HTMLInputElement>(null);
+  const importMenuRef = useRef<HTMLDivElement>(null);
+  const [importMenuOpen, setImportMenuOpen] = useState(false);
+  const [importingImage, setImportingImage] = useState(false);
+  const [generatingBackend, setGeneratingBackend] = useState(false);
+
+  useEffect(() => {
+    const handleClickOutside = (e: Event) => {
+      if (importMenuRef.current && !importMenuRef.current.contains(e.target as HTMLElement)) {
+        setImportMenuOpen(false);
+      }
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
 
   const handleAddAttribute = useCallback(async (entityId: string) => {
     const name = prompt('Nombre del atributo:');
@@ -226,6 +243,18 @@ export default function DiagramPage() {
     await exportArchitect(projectId);
   };
 
+  const handleGenerateBackend = async () => {
+    if (!projectId) return;
+    setGeneratingBackend(true);
+    try {
+      await downloadGeneratedBackend(projectId);
+    } catch {
+      alert('No se pudo generar el backend. Revisá la consola del backend para ver el error.');
+    } finally {
+      setGeneratingBackend(false);
+    }
+  };
+
   const handleImportFileChange = async (e: ChangeEvent<HTMLInputElement>) => {
     if (!projectId || !e.target.files?.[0]) return;
     const file = e.target.files[0];
@@ -236,6 +265,25 @@ export default function DiagramPage() {
     await importArchitect(projectId, file);
     e.target.value = '';
     loadDiagram();
+  };
+
+  const handleImportImageChange = async (e: ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!projectId || !file) return;
+    if (!confirm('Se van a agregar las tablas y relaciones detectadas en la foto a este proyecto. ¿Continuar?')) {
+      e.target.value = '';
+      return;
+    }
+    setImportingImage(true);
+    try {
+      await importAiImage(projectId, file);
+      await loadDiagram();
+    } catch {
+      alert('No pude leer el diagrama de la imagen. Probá con otra foto más nítida.');
+    } finally {
+      setImportingImage(false);
+      e.target.value = '';
+    }
   };
 
   return (
@@ -250,18 +298,46 @@ export default function DiagramPage() {
         <div className="diagram-topbar">
           <span className="diagram-title">Diagramador ER</span>
           <div className="diagram-topbar-actions">
+            <button className="btn btn-primary" onClick={handleGenerateBackend} disabled={generatingBackend}>
+              <Server size={14} /> {generatingBackend ? 'Generando...' : 'Generar backend'}
+            </button>
             <button className="btn" onClick={handleExportArchitect}>
-              <Download size={14} /> Exportar a Architect
+              <Download size={14} /> Exportar
             </button>
-            <button className="btn" onClick={() => fileInputRef.current?.click()}>
-              <Upload size={14} /> Importar de Architect
-            </button>
+            <div className="import-menu" ref={importMenuRef}>
+              <button className="btn" onClick={() => setImportMenuOpen(o => !o)} disabled={importingImage}>
+                <Upload size={14} /> {importingImage ? 'Importando...' : 'Importar'} <ChevronDown size={14} />
+              </button>
+              {importMenuOpen && (
+                <div className="import-menu-dropdown">
+                  <button
+                    className="import-menu-item"
+                    onClick={() => { setImportMenuOpen(false); fileInputRef.current?.click(); }}
+                  >
+                    <Upload size={14} /> Desde Architect
+                  </button>
+                  <button
+                    className="import-menu-item"
+                    onClick={() => { setImportMenuOpen(false); imageInputRef.current?.click(); }}
+                  >
+                    <ImageIcon size={14} /> Desde foto
+                  </button>
+                </div>
+              )}
+            </div>
             <input
               type="file"
               accept=".architect,.xml"
               ref={fileInputRef}
               style={{ display: 'none' }}
               onChange={handleImportFileChange}
+            />
+            <input
+              type="file"
+              accept="image/*"
+              ref={imageInputRef}
+              style={{ display: 'none' }}
+              onChange={handleImportImageChange}
             />
             <Link to="/projects" className="btn">Volver a proyectos</Link>
           </div>

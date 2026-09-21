@@ -1,0 +1,151 @@
+package com.generated.backend.ai;
+
+import com.fasterxml.jackson.core.type.TypeReference;
+import com.fasterxml.jackson.databind.DeserializationFeature;
+import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.databind.SerializationFeature;
+import com.fasterxml.jackson.databind.node.ObjectNode;
+import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule;
+import jakarta.persistence.EntityManager;
+import jakarta.persistence.metamodel.Attribute;
+import jakarta.persistence.metamodel.EntityType;
+import lombok.RequiredArgsConstructor;
+import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
+
+import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
+
+@Service
+@RequiredArgsConstructor
+public class AiCommandService {
+
+    public record AiResult(String reply, List<Object> data, List<String> errors) {}
+
+    private final OllamaClient ollamaClient;
+    private final EntityManager entityManager;
+    private final ObjectMapper objectMapper = new ObjectMapper()
+            .registerModule(new JavaTimeModule())
+            .configure(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES, false)
+            .disable(SerializationFeature.WRITE_DATES_AS_TIMESTAMPS);
+
+    @Transactional
+    public AiResult execute(String userText) {
+        String raw = ollamaClient.generateJson(buildSystemPrompt(), userText);
+
+        JsonNode parsed;
+        try {
+            parsed = objectMapper.readTree(raw);
+        } catch (Exception e) {
+            throw new IllegalStateException("La IA no devolvió JSON válido: " + raw, e);
+        }
+
+        Map<String, EntityType<?>> byName = new HashMap<>();
+        for (EntityType<?> et : entityManager.getMetamodel().getEntities()) {
+            byName.put(normalize(et.getName()), et);
+        }
+
+        List<Object> data = new ArrayList<>();
+        List<String> errors = new ArrayList<>();
+        for (JsonNode action : parsed.path("actions")) {
+            try {
+                runAction(action, byName, data);
+            } catch (Exception e) {
+                errors.add(action.path("action").asText("?") + ": " + e.getMessage());
+            }
+        }
+
+        return new AiResult(parsed.path("reply").asText("Listo."), data, errors);
+    }
+
+    private void runAction(JsonNode action, Map<String, EntityType<?>> byName, List<Object> data) throws Exception {
+        String type = action.path("action").asText("");
+        String entityName = action.path("entity").asText("");
+        EntityType<?> et = byName.get(normalize(entityName));
+        if (et == null) throw new IllegalArgumentException("Entidad desconocida: " + entityName);
+
+        switch (type) {
+            case "create" -> {
+                Object entity = objectMapper.treeToValue(fieldsWithoutId(action), et.getJavaType());
+                entityManager.persist(entity);
+                data.add(entity);
+            }
+            case "list" -> data.addAll(findAll(et));
+            case "update" -> {
+                Object entity = findTarget(et, action);
+                objectMapper.readerForUpdating(entity).readValue(fieldsWithoutId(action));
+                data.add(entity);
+            }
+            case "delete" -> entityManager.remove(findTarget(et, action));
+            default -> throw new IllegalArgumentException("Acción desconocida: " + type);
+        }
+    }
+
+    private ObjectNode fieldsWithoutId(JsonNode action) {
+        JsonNode fields = action.path("fields");
+        if (!fields.isObject()) throw new IllegalArgumentException("Faltan los campos");
+        ObjectNode copy = ((ObjectNode) fields).deepCopy();
+        copy.remove("id");
+        return copy;
+    }
+
+    private List<?> findAll(EntityType<?> et) {
+        return entityManager.createQuery("select e from " + et.getName() + " e", et.getJavaType()).getResultList();
+    }
+
+    private Object findTarget(EntityType<?> et, JsonNode action) {
+        String id = action.path("id").asText("");
+        if (!id.isBlank()) {
+            Object found = entityManager.find(et.getJavaType(),
+                    objectMapper.convertValue(id, et.getIdType().getJavaType()));
+            if (found != null) return found;
+        }
+
+        JsonNode match = action.path("match");
+        if (match.isObject() && match.size() > 0) {
+            for (Object candidate : findAll(et)) {
+                Map<String, Object> values = objectMapper.convertValue(candidate, new TypeReference<Map<String, Object>>() {});
+                boolean matches = true;
+                for (Map.Entry<String, JsonNode> entry : match.properties()) {
+                    Object actual = values.get(entry.getKey());
+                    if (actual == null || !normalize(String.valueOf(actual)).equals(normalize(entry.getValue().asText("")))) {
+                        matches = false;
+                        break;
+                    }
+                }
+                if (matches) return candidate;
+            }
+        }
+        throw new IllegalArgumentException("No encontré ningún registro de " + et.getName() + " que coincida");
+    }
+
+    private String buildSystemPrompt() {
+        StringBuilder schema = new StringBuilder();
+        for (EntityType<?> et : entityManager.getMetamodel().getEntities()) {
+            List<String> fields = new ArrayList<>();
+            for (Attribute<?, ?> a : et.getAttributes()) {
+                fields.add(a.getName() + ": " + a.getJavaType().getSimpleName());
+            }
+            schema.append("- ").append(et.getName()).append(" (").append(String.join(", ", fields)).append(")\n");
+        }
+
+        return "Eres un asistente que opera sobre una base de datos. Entidades disponibles:\n" + schema
+                + "Responde ÚNICAMENTE con un JSON con esta forma exacta, sin texto adicional ni markdown:\n"
+                + "{\"reply\": \"frase corta en español confirmando qué hiciste\", \"actions\": [\n"
+                + "  {\"action\": \"create\", \"entity\": \"Nombre\", \"fields\": {\"campo\": \"valor\"}},\n"
+                + "  {\"action\": \"list\", \"entity\": \"Nombre\"},\n"
+                + "  {\"action\": \"update\", \"entity\": \"Nombre\", \"match\": {\"campo\": \"valor\"}, \"fields\": {\"campo\": \"nuevo valor\"}},\n"
+                + "  {\"action\": \"delete\", \"entity\": \"Nombre\", \"match\": {\"campo\": \"valor\"}}\n"
+                + "]}\n"
+                + "Usa los nombres EXACTOS de entidades y campos. No incluyas el campo id al crear. "
+                + "Las fechas van como yyyy-MM-dd. "
+                + "Si la instrucción es una pregunta o no requiere cambios, deja actions vacío y responde en reply.";
+    }
+
+    private String normalize(String s) {
+        return s == null ? "" : s.trim().toLowerCase();
+    }
+}

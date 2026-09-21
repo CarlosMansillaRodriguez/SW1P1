@@ -26,6 +26,14 @@ public class backendGeneratorService {
     private final DiagramAttributeRepository attributeRepository;
     private final DiagramRelationshipRepository relationshipRepository;
 
+    private String loadTemplate(String name) throws IOException {
+        try (var in = getClass().getResourceAsStream("/generator-templates/" + name)) {
+            if (in == null)
+                throw new IOException("No se encontró la plantilla: " + name);
+            return new String(in.readAllBytes(), StandardCharsets.UTF_8);
+        }
+    }
+
     public byte[] generate(UUID projectId) throws IOException {
         List<DiagramEntity> entities = entityRepository.findByProjectId(projectId);
         List<DiagramRelationship> relationships = relationshipRepository.findByProjectId(projectId);
@@ -44,21 +52,31 @@ public class backendGeneratorService {
         try (ZipOutputStream zip = new ZipOutputStream(buffer)) {
             writeEntry(zip, "generated-backend/pom.xml", buildPomXml());
             writeEntry(zip, "generated-backend/src/main/resources/application.yml", buildApplicationYml());
-            writeEntry(zip, "generated-backend/src/main/java/com/generated/backend/GeneratedBackendApplication.java", buildMainClass());
+            writeEntry(zip, "generated-backend/src/main/java/com/generated/backend/GeneratedBackendApplication.java",
+                    buildMainClass());
 
-            String migrationSql = sqlMigrationBuilder.build(entities, attributesByEntity, relationships, tableNameByEntityId);
+            String migrationSql = sqlMigrationBuilder.build(entities, attributesByEntity, relationships,
+                    tableNameByEntityId);
             writeEntry(zip, "generated-backend/src/main/resources/db/migration/V1__init.sql", migrationSql);
-
+            String base = "generated-backend/src/main/java/com/generated/backend/";
+            writeEntry(zip, base + "config/CorsConfig.java", loadTemplate("CorsConfig.java.txt"));
+            writeEntry(zip, base + "ai/OllamaClient.java", loadTemplate("OllamaClient.java.txt"));
+            writeEntry(zip, base + "ai/AiCommandService.java", loadTemplate("AiCommandService.java.txt"));
+            writeEntry(zip, base + "ai/AiController.java", loadTemplate("AiController.java.txt"));
             for (DiagramEntity entity : entities) {
                 String className = classNameByEntityId.get(entity.getId());
                 String tableName = tableNameByEntityId.get(entity.getId());
-                List<generatedField> fields = buildFields(entity, attributesByEntity.get(entity.getId()), relationships, tableNameByEntityId);
+                List<generatedField> fields = buildFields(entity, attributesByEntity.get(entity.getId()), relationships,
+                        tableNameByEntityId);
 
-                String base = "generated-backend/src/main/java/com/generated/backend/";
-                writeEntry(zip, base + "model/" + className + ".java", javaTemplateBuilder.buildModel(BASE_PACKAGE, className, tableName, fields));
-                writeEntry(zip, base + "repository/" + className + "Repository.java", javaTemplateBuilder.buildRepository(BASE_PACKAGE, className));
-                writeEntry(zip, base + "service/" + className + "Service.java", javaTemplateBuilder.buildService(BASE_PACKAGE, className));
-                writeEntry(zip, base + "controller/" + className + "Controller.java", javaTemplateBuilder.buildController(BASE_PACKAGE, className, tableName));
+                writeEntry(zip, base + "model/" + className + ".java",
+                        javaTemplateBuilder.buildModel(BASE_PACKAGE, className, tableName, fields));
+                writeEntry(zip, base + "repository/" + className + "Repository.java",
+                        javaTemplateBuilder.buildRepository(BASE_PACKAGE, className));
+                writeEntry(zip, base + "service/" + className + "Service.java",
+                        javaTemplateBuilder.buildService(BASE_PACKAGE, className));
+                writeEntry(zip, base + "controller/" + className + "Controller.java",
+                        javaTemplateBuilder.buildController(BASE_PACKAGE, className, tableName));
             }
         }
 
@@ -66,7 +84,7 @@ public class backendGeneratorService {
     }
 
     private List<generatedField> buildFields(DiagramEntity entity, List<DiagramAttribute> attributes,
-                                              List<DiagramRelationship> relationships, Map<UUID, String> tableNameByEntityId) {
+            List<DiagramRelationship> relationships, Map<UUID, String> tableNameByEntityId) {
         List<generatedField> fields = new ArrayList<>();
         for (DiagramAttribute attr : attributes) {
             fields.add(new generatedField(
@@ -76,10 +94,13 @@ public class backendGeneratorService {
                     attr.isPrimaryKey()));
         }
         for (DiagramRelationship rel : relationships) {
-            if (!rel.getTargetEntity().getId().equals(entity.getId())) continue;
-            if (rel.getRelationshipType() == DiagramRelationship.RelationshipType.MANY_TO_MANY) continue;
+            if (!rel.getTargetEntity().getId().equals(entity.getId()))
+                continue;
+            if (rel.getRelationshipType() == DiagramRelationship.RelationshipType.MANY_TO_MANY)
+                continue;
             String sourceTable = tableNameByEntityId.get(rel.getSourceEntity().getId());
-            fields.add(new generatedField(nameUtils.toFieldName(sourceTable) + "Id", "UUID", sourceTable + "_id", false));
+            fields.add(
+                    new generatedField(nameUtils.toFieldName(sourceTable) + "Id", "UUID", sourceTable + "_id", false));
         }
         return fields;
     }
@@ -99,7 +120,7 @@ public class backendGeneratorService {
                     <parent>
                         <groupId>org.springframework.boot</groupId>
                         <artifactId>spring-boot-starter-parent</artifactId>
-                        <version>4.1.0</version>
+                        <version>4.0.8</version>
                         <relativePath/>
                     </parent>
                     <groupId>com.generated</groupId>
@@ -112,11 +133,15 @@ public class backendGeneratorService {
                     <dependencies>
                         <dependency>
                             <groupId>org.springframework.boot</groupId>
-                            <artifactId>spring-boot-starter-web</artifactId>
+                            <artifactId>spring-boot-starter-webmvc</artifactId>
                         </dependency>
                         <dependency>
                             <groupId>org.springframework.boot</groupId>
                             <artifactId>spring-boot-starter-data-jpa</artifactId>
+                        </dependency>
+                        <dependency>
+                            <groupId>org.springframework.boot</groupId>
+                            <artifactId>spring-boot-starter-flyway</artifactId>
                         </dependency>
                         <dependency>
                             <groupId>org.flywaydb</groupId>
@@ -126,6 +151,16 @@ public class backendGeneratorService {
                             <groupId>org.postgresql</groupId>
                             <artifactId>postgresql</artifactId>
                             <scope>runtime</scope>
+                        </dependency>
+                        <dependency>
+                            <groupId>com.fasterxml.jackson.core</groupId>
+                            <artifactId>jackson-databind</artifactId>
+                            <version>2.20.0</version>
+                        </dependency>
+                        <dependency>
+                            <groupId>com.fasterxml.jackson.datatype</groupId>
+                            <artifactId>jackson-datatype-jsr310</artifactId>
+                            <version>2.20.0</version>
                         </dependency>
                         <dependency>
                             <groupId>org.projectlombok</groupId>
@@ -138,6 +173,18 @@ public class backendGeneratorService {
                             <plugin>
                                 <groupId>org.springframework.boot</groupId>
                                 <artifactId>spring-boot-maven-plugin</artifactId>
+                            </plugin>
+                            <plugin>
+                                <groupId>org.apache.maven.plugins</groupId>
+                                <artifactId>maven-compiler-plugin</artifactId>
+                                <configuration>
+                                    <annotationProcessorPaths>
+                                        <path>
+                                            <groupId>org.projectlombok</groupId>
+                                            <artifactId>lombok</artifactId>
+                                        </path>
+                                    </annotationProcessorPaths>
+                                </configuration>
                             </plugin>
                         </plugins>
                     </build>
@@ -161,6 +208,9 @@ public class backendGeneratorService {
                     locations: classpath:db/migration
                 server:
                   port: 8081
+                ollama:
+                  url: ${OLLAMA_URL:http://localhost:11434}
+                  model: ${OLLAMA_MODEL:qwen2.5:3b}
                 """;
     }
 
