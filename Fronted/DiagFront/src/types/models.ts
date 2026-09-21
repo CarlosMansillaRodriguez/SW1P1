@@ -16,7 +16,27 @@ export interface DiagramAttribute {
   defaultValue?: string;
 }
 
-export type AssociationType = 'ASSOCIATION' | 'GENERALIZATION' | 'AGGREGATION' | 'COMPOSITION';
+export type AssociationType =
+  | 'ASSOCIATION'
+  | 'DIRECTED_ASSOCIATION'
+  | 'GENERALIZATION'
+  | 'AGGREGATION'
+  | 'COMPOSITION'
+  | 'DEPENDENCY'
+  | 'REALIZATION'
+  | 'ASSOCIATION_CLASS';
+
+export interface DiagramRelationship {
+  id: string;
+  name?: string;
+  sourceEntity: DiagramEntity;
+  targetEntity: DiagramEntity;
+  targetRelationship?: DiagramRelationship | null;
+  relationshipType: 'ONE_TO_ONE' | 'ONE_TO_MANY' | 'MANY_TO_MANY';
+  associationType: AssociationType;
+  sourceCardinality: string;
+  targetCardinality: string;
+}
 
 export interface DiagramRelationship {
   id: string;

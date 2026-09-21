@@ -1,6 +1,10 @@
 import { useState } from 'react';
-import { Table2, ChevronDown, ChevronRight, Link2, GitBranch, Diamond, Component } from 'lucide-react';
+import {
+  Table2, ChevronDown, ChevronRight, Link2, GitBranch, Diamond, Component,
+  ArrowRight, MoveRight, Triangle, Puzzle,
+} from 'lucide-react';
 import type { AssociationType } from '../types/models';
+import { ASSOCIATION_ORDER, ASSOCIATION_RULES } from '../utils/associationRules';
 import './Sidebar.css';
 
 interface SidebarProps {
@@ -9,12 +13,16 @@ interface SidebarProps {
   onSelectAssociation: (type: AssociationType | null) => void;
 }
 
-const ASSOCIATIONS: { type: AssociationType; label: string; hint: string; icon: typeof Link2 }[] = [
-  { type: 'ASSOCIATION', label: 'Asociación', hint: '1:1, 1:N, N:M', icon: Link2 },
-  { type: 'GENERALIZATION', label: 'Generalización', hint: 'Herencia', icon: GitBranch },
-  { type: 'AGGREGATION', label: 'Agregación', hint: 'Todo-parte (débil)', icon: Diamond },
-  { type: 'COMPOSITION', label: 'Composición', hint: 'Todo-parte (fuerte)', icon: Component },
-];
+const ICONS: Record<AssociationType, typeof Link2> = {
+  ASSOCIATION: Link2,
+  GENERALIZATION: GitBranch,
+  COMPOSITION: Component,
+  AGGREGATION: Diamond,
+  DEPENDENCY: MoveRight,
+  DIRECTED_ASSOCIATION: ArrowRight,
+  REALIZATION: Triangle,
+  ASSOCIATION_CLASS: Puzzle,
+};
 
 export default function Sidebar({ onAddEntity, activeAssociation, onSelectAssociation }: SidebarProps) {
   const [associationsOpen, setAssociationsOpen] = useState(true);
@@ -30,24 +38,25 @@ export default function Sidebar({ onAddEntity, activeAssociation, onSelectAssoci
 
       <button className="sidebar-group-header" onClick={() => setAssociationsOpen(o => !o)}>
         {associationsOpen ? <ChevronDown size={14} /> : <ChevronRight size={14} />}
-        Asociaciones
+        Relaciones
       </button>
 
       {associationsOpen && (
         <div>
-          {ASSOCIATIONS.map(a => {
-            const Icon = a.icon;
-            const active = activeAssociation === a.type;
+          {ASSOCIATION_ORDER.map(type => {
+            const rule = ASSOCIATION_RULES[type];
+            const Icon = ICONS[type];
+            const active = activeAssociation === type;
             return (
               <button
-                key={a.type}
+                key={type}
                 className={`sidebar-item sidebar-item--nested ${active ? 'sidebar-item--active' : ''}`}
-                onClick={() => onSelectAssociation(active ? null : a.type)}
+                onClick={() => onSelectAssociation(active ? null : type)}
               >
                 <Icon size={15} />
                 <span className="sidebar-item-text">
-                  <span className="sidebar-item-label">{a.label}</span>
-                  <span className="sidebar-item-hint">{a.hint}</span>
+                  <span className="sidebar-item-label">{rule.label}</span>
+                  <span className="sidebar-item-hint">{rule.hint}</span>
                 </span>
               </button>
             );
@@ -57,8 +66,10 @@ export default function Sidebar({ onAddEntity, activeAssociation, onSelectAssoci
 
       {activeAssociation && (
         <div className="sidebar-hint-box">
-          Modo activo: <strong>{ASSOCIATIONS.find(a => a.type === activeAssociation)?.label}</strong>.
-          Arrastrá desde una tabla a otra para crear la relación.
+          Modo activo: <strong>{ASSOCIATION_RULES[activeAssociation].label}</strong>.{' '}
+          {activeAssociation === 'ASSOCIATION_CLASS'
+            ? 'Hacé click sobre la línea de una asociación para colgarle la clase.'
+            : 'Arrastrá desde una tabla a otra para crear la relación.'}
         </div>
       )}
     </aside>

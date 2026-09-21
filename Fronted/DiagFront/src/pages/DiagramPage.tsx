@@ -4,6 +4,7 @@ import { useParams, Link } from 'react-router-dom';
 import { Download, Upload, Image as ImageIcon, ChevronDown, Server } from 'lucide-react';
 import { importAiImage } from '../api/aiApi';
 import { downloadGeneratedBackend } from '../api/generatorApi';
+import { ASSOCIATION_RULES } from '../utils/associationRules';
 import {
   ReactFlow,
   Background,
@@ -34,12 +35,7 @@ import './DiagramPage.css';
 const nodeTypes = { entity: EntityNode };
 const edgeTypes = { association: AssociationEdge };
 
-const DEFAULT_CARDINALITY: Record<AssociationType, { source: string; target: string; relType: DiagramRelationship['relationshipType'] }> = {
-  ASSOCIATION: { source: '1', target: '*', relType: 'ONE_TO_MANY' },
-  GENERALIZATION: { source: '1', target: '1', relType: 'ONE_TO_ONE' },
-  AGGREGATION: { source: '1', target: '*', relType: 'ONE_TO_MANY' },
-  COMPOSITION: { source: '1', target: '*', relType: 'ONE_TO_MANY' },
-};
+const HOST_TYPES: AssociationType[] = ['ASSOCIATION', 'DIRECTED_ASSOCIATION', 'AGGREGATION', 'COMPOSITION'];
 
 function relationshipToEdge(r: DiagramRelationship): Edge {
   return {
@@ -49,9 +45,12 @@ function relationshipToEdge(r: DiagramRelationship): Edge {
     type: 'association',
     data: {
       associationType: r.associationType,
+      relationshipType: r.relationshipType,
       sourceCardinality: r.sourceCardinality,
       targetCardinality: r.targetCardinality,
       verb: r.name,
+      assocSourceId: r.targetRelationship?.sourceEntity.id,
+      assocTargetId: r.targetRelationship?.targetEntity.id,
     },
   };
 }
@@ -170,27 +169,65 @@ export default function DiagramPage() {
   const onConnect = useCallback(async (connection: Connection) => {
     if (!connection.source || !connection.target || !projectId) return;
     const type = activeAssociation ?? 'ASSOCIATION';
-    const defaults = DEFAULT_CARDINALITY[type];
+    const rule = ASSOCIATION_RULES[type];
+
+    if (type === 'ASSOCIATION_CLASS') {
+      alert('Para crear una clase de asociación hacé click sobre la línea de una asociación.');
+      return;
+    }
+    if (connection.source === connection.target && (type === 'GENERALIZATION' || type === 'REALIZATION')) {
+      alert(`${rule.label} no puede unir una tabla consigo misma.`);
+      return;
+    }
 
     const relationship = await createRelationship(projectId, connection.source, connection.target, {
-      relationshipType: defaults.relType,
+      relationshipType: rule.relType,
       associationType: type,
-      sourceCardinality: defaults.source,
-      targetCardinality: defaults.target,
+      sourceCardinality: rule.defaultSource,
+      targetCardinality: rule.defaultTarget,
     });
 
     setEdges((eds: Edge[]) => addEdge(relationshipToEdge(relationship), eds));
   }, [setEdges, projectId, activeAssociation]);
 
+  const onEdgeClick = useCallback(async (_: MouseEvent, edge: Edge) => {
+  if (activeAssociation !== 'ASSOCIATION_CLASS' || !projectId) return;
+  const data = edge.data as { associationType: AssociationType };
+  if (!HOST_TYPES.includes(data.associationType)) {
+    alert('La clase de asociación solo puede colgar de una asociación, agregación o composición.');
+    return;
+  }
+  const name = prompt('Nombre de la clase de asociación:');
+  if (!name) return;
+
+  const a = nodes.find(n => n.id === edge.source);
+  const b = nodes.find(n => n.id === edge.target);
+  const x = a && b ? Math.round((a.position.x + b.position.x) / 2) : 100;
+  const y = a && b ? Math.round((a.position.y + b.position.y) / 2) + 180 : 100;
+
+  const entity = await createEntity(projectId, name);
+  await moveEntity(entity.id, x, y);
+
+  const rule = ASSOCIATION_RULES.ASSOCIATION_CLASS;
+  await createRelationship(projectId, entity.id, edge.source, {
+    relationshipType: rule.relType,
+    associationType: 'ASSOCIATION_CLASS',
+    sourceCardinality: rule.defaultSource,
+    targetCardinality: rule.defaultTarget,
+  }, edge.id);
+
+  await loadDiagram();
+}, [activeAssociation, projectId, nodes, loadDiagram]);
+
   const onEdgeDoubleClick = useCallback((_: MouseEvent, edge: Edge) => {
-    const data = edge.data as { associationType: AssociationType; sourceCardinality: string; targetCardinality: string; verb?: string };
+    const data = edge.data as { associationType: AssociationType; relationshipType: DiagramRelationship['relationshipType']; sourceCardinality: string; targetCardinality: string; verb?: string };
     setEditingRelationship({
       id: edge.id,
       name: data.verb,
       associationType: data.associationType,
       sourceCardinality: data.sourceCardinality,
       targetCardinality: data.targetCardinality,
-      relationshipType: 'ONE_TO_MANY',
+      relationshipType: data.relationshipType,
       sourceEntity: { id: edge.source } as never,
       targetEntity: { id: edge.target } as never,
     });
@@ -204,11 +241,11 @@ export default function DiagramPage() {
   };
 
   const handleDeleteRelationship = async () => {
-    if (!editingRelationship) return;
-    await deleteRelationship(editingRelationship.id);
-    setEdges((eds: Edge[]) => eds.filter(e => e.id !== editingRelationship.id));
-    setEditingRelationship(null);
-  };
+  if (!editingRelationship) return;
+  await deleteRelationship(editingRelationship.id);
+  setEditingRelationship(null);
+  await loadDiagram();
+};
 
   const handleSwapRelationship = async () => {
     if (!editingRelationship) return;
@@ -350,6 +387,7 @@ export default function DiagramPage() {
             edgeTypes={edgeTypes}
             onNodesChange={onNodesChange}
             onConnect={onConnect}
+            onEdgeClick={onEdgeClick}
             onEdgeDoubleClick={onEdgeDoubleClick}
             connectionMode={ConnectionMode.Loose}
             fitView

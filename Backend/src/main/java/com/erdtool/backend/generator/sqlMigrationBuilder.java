@@ -12,9 +12,9 @@ import java.util.UUID;
 public class sqlMigrationBuilder {
 
     public static String build(List<DiagramEntity> entities,
-                                Map<UUID, List<DiagramAttribute>> attributesByEntity,
-                                List<DiagramRelationship> relationships,
-                                Map<UUID, String> tableNameByEntityId) {
+            Map<UUID, List<DiagramAttribute>> attributesByEntity,
+            List<DiagramRelationship> relationships,
+            Map<UUID, String> tableNameByEntityId) {
         StringBuilder sql = new StringBuilder();
         sql.append("CREATE EXTENSION IF NOT EXISTS pgcrypto;\n\n");
 
@@ -35,8 +35,10 @@ public class sqlMigrationBuilder {
                 if (attr.isPrimaryKey()) {
                     line.append(" PRIMARY KEY DEFAULT gen_random_uuid()");
                 } else {
-                    if (!attr.isNullable()) line.append(" NOT NULL");
-                    if (attr.isUnique()) line.append(" UNIQUE");
+                    if (!attr.isNullable())
+                        line.append(" NOT NULL");
+                    if (attr.isUnique())
+                        line.append(" UNIQUE");
                     if (attr.getDefaultValue() != null && !attr.getDefaultValue().isBlank()) {
                         line.append(" DEFAULT '").append(attr.getDefaultValue()).append("'");
                     }
@@ -45,12 +47,14 @@ public class sqlMigrationBuilder {
             }
 
             for (DiagramRelationship rel : relationships) {
-                if (!rel.getTargetEntity().getId().equals(entity.getId())) continue;
-                if (rel.getRelationshipType() == DiagramRelationship.RelationshipType.MANY_TO_MANY) continue;
-                String sourceTable = tableNameByEntityId.get(rel.getSourceEntity().getId());
-                String fkColumn = sourceTable + "_id";
+                if (!relationshipRules.generatesForeignKey(rel))
+                    continue;
+                if (!relationshipRules.foreignKeyOwner(rel).getId().equals(entity.getId()))
+                    continue;
+                String referencedTable = tableNameByEntityId.get(relationshipRules.referencedEntity(rel).getId());
+                String fkColumn = referencedTable + "_id";
                 boolean unique = rel.getRelationshipType() == DiagramRelationship.RelationshipType.ONE_TO_ONE;
-                columnLines.add(fkColumn + " UUID REFERENCES " + sourceTable + "(id)" + (unique ? " UNIQUE" : ""));
+                columnLines.add(fkColumn + " UUID REFERENCES " + referencedTable + "(id)" + (unique ? " UNIQUE" : ""));
             }
 
             sql.append("CREATE TABLE ").append(tableName).append(" (\n    ");
@@ -59,13 +63,16 @@ public class sqlMigrationBuilder {
         }
 
         for (DiagramRelationship rel : relationships) {
-            if (rel.getRelationshipType() != DiagramRelationship.RelationshipType.MANY_TO_MANY) continue;
+            if (!relationshipRules.generatesJoinTable(rel))
+                continue;
             String sourceTable = tableNameByEntityId.get(rel.getSourceEntity().getId());
             String targetTable = tableNameByEntityId.get(rel.getTargetEntity().getId());
             String joinTable = sourceTable + "_" + targetTable;
             sql.append("CREATE TABLE ").append(joinTable).append(" (\n");
-            sql.append("    ").append(sourceTable).append("_id UUID NOT NULL REFERENCES ").append(sourceTable).append("(id) ON DELETE CASCADE,\n");
-            sql.append("    ").append(targetTable).append("_id UUID NOT NULL REFERENCES ").append(targetTable).append("(id) ON DELETE CASCADE,\n");
+            sql.append("    ").append(sourceTable).append("_id UUID NOT NULL REFERENCES ").append(sourceTable)
+                    .append("(id) ON DELETE CASCADE,\n");
+            sql.append("    ").append(targetTable).append("_id UUID NOT NULL REFERENCES ").append(targetTable)
+                    .append("(id) ON DELETE CASCADE,\n");
             sql.append("    PRIMARY KEY (").append(sourceTable).append("_id, ").append(targetTable).append("_id)\n");
             sql.append(");\n\n");
         }

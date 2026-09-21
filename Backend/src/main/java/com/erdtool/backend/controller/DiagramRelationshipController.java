@@ -19,12 +19,16 @@ public class DiagramRelationshipController {
 
     @PostMapping("/projects/{projectId}/relationships")
     public DiagramRelationship create(@PathVariable UUID projectId,
-                                       @RequestParam UUID sourceEntityId,
-                                       @RequestParam UUID targetEntityId,
-                                       @RequestBody DiagramRelationship relationship) {
+            @RequestParam UUID sourceEntityId,
+            @RequestParam UUID targetEntityId,
+            @RequestParam(required = false) UUID targetRelationshipId,
+            @RequestBody DiagramRelationship relationship) {
         relationship.setProject(projectRepository.getReferenceById(projectId));
         relationship.setSourceEntity(entityRepository.getReferenceById(sourceEntityId));
         relationship.setTargetEntity(entityRepository.getReferenceById(targetEntityId));
+        if (targetRelationshipId != null) {
+            relationship.setTargetRelationship(relationshipService.findById(targetRelationshipId));
+        }
         return relationshipService.create(relationship);
     }
 

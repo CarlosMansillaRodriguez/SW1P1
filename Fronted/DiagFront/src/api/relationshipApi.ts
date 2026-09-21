@@ -13,12 +13,13 @@ export const createRelationship = (
   projectId: string,
   sourceEntityId: string,
   targetEntityId: string,
-  payload: RelationshipPayload
+  payload: RelationshipPayload,
+  targetRelationshipId?: string
 ) =>
   api.post<DiagramRelationship>(
     `/projects/${projectId}/relationships`,
     payload,
-    { params: { sourceEntityId, targetEntityId } }
+    { params: { sourceEntityId, targetEntityId, targetRelationshipId } }
   ).then(r => r.data);
 
 export const updateRelationship = (id: string, payload: RelationshipPayload) =>

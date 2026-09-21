@@ -195,11 +195,14 @@ public class AiCommandService {
                     { "action": "delete_table", "table": "..." },
                     { "action": "add_attribute", "table": "...", "name": "...", "dataType": "VARCHAR|TEXT|INTEGER|BOOLEAN|DATE|TIMESTAMP|DECIMAL|UUID", "primaryKey": false, "foreignKey": false, "nullable": true, "unique": false },
                     { "action": "delete_attribute", "table": "...", "name": "..." },
-                    { "action": "create_relationship", "sourceTable": "...", "targetTable": "...", "type": "ONE_TO_ONE|ONE_TO_MANY|MANY_TO_MANY", "associationType": "ASSOCIATION|GENERALIZATION|AGGREGATION|COMPOSITION", "sourceCardinality": "1|0..1|*|0..*|1..*", "targetCardinality": "1|0..1|*|0..*|1..*", "verb": "..." },
+                    { "action": "create_relationship", "sourceTable": "...", "targetTable": "...", "type": "ONE_TO_ONE|ONE_TO_MANY|MANY_TO_MANY", 
+                     "associationType": "ASSOCIATION|DIRECTED_ASSOCIATION|GENERALIZATION|AGGREGATION|COMPOSITION|DEPENDENCY|REALIZATION": "ASSOCIATION|GENERALIZATION|AGGREGATION|COMPOSITION", "sourceCardinality": "1|0..1|*|0..*|1..*", "targetCardinality": "1|0..1|*|0..*|1..*", "verb": "..." },
                     { "action": "delete_relationship", "sourceTable": "...", "targetTable": "..." }
                   ]
                 }
                 Usá los nombres de tabla EXACTOS que aparecen en el estado actual cuando la instrucción se refiera a una tabla existente.
+                Reglas: en GENERALIZATION y REALIZATION no hay verbo ni cardinalidades, sourceTable es el hijo (o la implementación) y targetTable el padre (o la interfaz).
+                En DEPENDENCY no hay cardinalidades. En AGGREGATION y COMPOSITION sourceTable es el "todo" y targetTable la "parte"; en COMPOSITION sourceCardinality solo puede ser 1 o 0..1.
                 Si la instrucción no requiere cambios (es una pregunta), dejá "actions" como una lista vacía y respondé la pregunta en "reply".
                 """.formatted(contextJson, userText);
     }
