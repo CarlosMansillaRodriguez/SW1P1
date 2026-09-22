@@ -36,4 +36,18 @@ public class DiagramAttributeService {
     public void delete(UUID id) {
         attributeRepository.deleteById(id);
     }
+
+    public void reorder(UUID entityId, List<UUID> orderedAttributeIds) {
+    List<DiagramAttribute> attributes = attributeRepository.findByEntityIdOrderByOrderIndex(entityId);
+    int index = 0;
+    for (UUID id : orderedAttributeIds) {
+        for (DiagramAttribute attribute : attributes) {
+            if (attribute.getId().equals(id)) {
+                attribute.setOrderIndex(index++);
+                attributeRepository.save(attribute);
+                break;
+            }
+        }
+    }
+}
 }

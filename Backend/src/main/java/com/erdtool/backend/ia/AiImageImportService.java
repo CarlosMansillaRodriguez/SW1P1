@@ -50,6 +50,9 @@ public class AiImageImportService {
                     { "sourceTable": "...", "targetTable": "...", "type": "ONE_TO_ONE|ONE_TO_MANY|MANY_TO_MANY", "associationType": "ASSOCIATION|GENERALIZATION|AGGREGATION|COMPOSITION", "sourceCardinality": "1|0..1|*|0..*|1..*", "targetCardinality": "1|0..1|*|0..*|1..*", "verb": "..." }
                   ]
                 }
+                Reglas: en GENERALIZATION y REALIZATION no hay verbo ni cardinalidades, sourceTable es el hijo (o la implementación) y targetTable el padre (o la interfaz).
+                En DEPENDENCY no hay cardinalidades. En AGGREGATION y COMPOSITION sourceTable es el "todo" y targetTable la "parte"; en COMPOSITION sourceCardinality solo puede ser 1 o 0..1.
+                Si las dos cardinalidades son de tipo muchos (*, 0..* o 1..*), la relación es muchos a muchos y no lleva verbo.
                 Si no podés identificar el tipo de dato de una columna, usá "VARCHAR". Si no podés determinar cuál es la clave primaria, asumí que es "id".
                 """;
 

@@ -12,3 +12,6 @@ export const updateAttribute = (id: string, attribute: Partial<DiagramAttribute>
 
 export const deleteAttribute = (id: string) =>
   api.delete(`/attributes/${id}`);
+
+export const reorderAttributes = (entityId: string, orderedIds: string[]) =>
+  api.put(`/entities/${entityId}/attributes/reorder`, orderedIds);

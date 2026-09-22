@@ -47,7 +47,8 @@ public class AiCommandService {
         result.setReply(parsed.path("reply").asText("Listo."));
 
         Map<String, DiagramEntity> byName = new HashMap<>();
-        for (DiagramEntity e : entities) byName.put(normalize(e.getName()), e);
+        for (DiagramEntity e : entities)
+            byName.put(normalize(e.getName()), e);
 
         boolean relationshipsChanged = false;
         JsonNode actions = parsed.path("actions");
@@ -70,7 +71,8 @@ public class AiCommandService {
                         case "rename_table" -> {
                             DiagramEntity entity = byName.get(normalize(action.path("table").asText("")));
                             if (entity != null) {
-                                entity = entityService.rename(entity.getId(), action.path("newName").asText(entity.getName()));
+                                entity = entityService.rename(entity.getId(),
+                                        action.path("newName").asText(entity.getName()));
                                 byName.put(normalize(entity.getName()), entity);
                                 result.getAffectedEntityIds().add(entity.getId());
                             }
@@ -119,9 +121,11 @@ public class AiCommandService {
                                 rel.setTargetEntity(target);
                                 rel.setName(action.path("verb").asText(null));
                                 rel.setRelationshipType(parseEnumSafe(DiagramRelationship.RelationshipType.class,
-                                        action.path("type").asText(""), DiagramRelationship.RelationshipType.ONE_TO_MANY));
+                                        action.path("type").asText(""),
+                                        DiagramRelationship.RelationshipType.ONE_TO_MANY));
                                 rel.setAssociationType(parseEnumSafe(DiagramRelationship.AssociationType.class,
-                                        action.path("associationType").asText(""), DiagramRelationship.AssociationType.ASSOCIATION));
+                                        action.path("associationType").asText(""),
+                                        DiagramRelationship.AssociationType.ASSOCIATION));
                                 rel.setSourceCardinality(action.path("sourceCardinality").asText("1"));
                                 rel.setTargetCardinality(action.path("targetCardinality").asText("*"));
                                 relationshipService.create(rel);
@@ -140,7 +144,8 @@ public class AiCommandService {
                                 relationshipsChanged = true;
                             }
                         }
-                        default -> { /* acción desconocida, se ignora */ }
+                        default -> {
+                            /* acción desconocida, se ignora */ }
                     }
                 } catch (Exception ignoredActionError) {
                     // una acción individual fallida no debe tumbar el resto del comando
@@ -195,7 +200,7 @@ public class AiCommandService {
                     { "action": "delete_table", "table": "..." },
                     { "action": "add_attribute", "table": "...", "name": "...", "dataType": "VARCHAR|TEXT|INTEGER|BOOLEAN|DATE|TIMESTAMP|DECIMAL|UUID", "primaryKey": false, "foreignKey": false, "nullable": true, "unique": false },
                     { "action": "delete_attribute", "table": "...", "name": "..." },
-                    { "action": "create_relationship", "sourceTable": "...", "targetTable": "...", "type": "ONE_TO_ONE|ONE_TO_MANY|MANY_TO_MANY", 
+                    { "action": "create_relationship", "sourceTable": "...", "targetTable": "...", "type": "ONE_TO_ONE|ONE_TO_MANY|MANY_TO_MANY",
                      "associationType": "ASSOCIATION|DIRECTED_ASSOCIATION|GENERALIZATION|AGGREGATION|COMPOSITION|DEPENDENCY|REALIZATION": "ASSOCIATION|GENERALIZATION|AGGREGATION|COMPOSITION", "sourceCardinality": "1|0..1|*|0..*|1..*", "targetCardinality": "1|0..1|*|0..*|1..*", "verb": "..." },
                     { "action": "delete_relationship", "sourceTable": "...", "targetTable": "..." }
                   ]
@@ -203,8 +208,10 @@ public class AiCommandService {
                 Usá los nombres de tabla EXACTOS que aparecen en el estado actual cuando la instrucción se refiera a una tabla existente.
                 Reglas: en GENERALIZATION y REALIZATION no hay verbo ni cardinalidades, sourceTable es el hijo (o la implementación) y targetTable el padre (o la interfaz).
                 En DEPENDENCY no hay cardinalidades. En AGGREGATION y COMPOSITION sourceTable es el "todo" y targetTable la "parte"; en COMPOSITION sourceCardinality solo puede ser 1 o 0..1.
+                Si las dos cardinalidades son de tipo muchos (*, 0..* o 1..*), la relación es muchos a muchos y no lleva verbo.
                 Si la instrucción no requiere cambios (es una pregunta), dejá "actions" como una lista vacía y respondé la pregunta en "reply".
-                """.formatted(contextJson, userText);
+                """
+                .formatted(contextJson, userText);
     }
 
     private String normalize(String s) {

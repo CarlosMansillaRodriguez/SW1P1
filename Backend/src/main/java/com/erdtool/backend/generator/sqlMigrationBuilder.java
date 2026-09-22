@@ -8,6 +8,7 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
+import java.util.Set;
 
 public class sqlMigrationBuilder {
 
@@ -16,6 +17,7 @@ public class sqlMigrationBuilder {
             List<DiagramRelationship> relationships,
             Map<UUID, String> tableNameByEntityId) {
         StringBuilder sql = new StringBuilder();
+        Set<UUID> hostsWithClass = relationshipRules.hostsWithClass(relationships);
         sql.append("CREATE EXTENSION IF NOT EXISTS pgcrypto;\n\n");
 
         for (DiagramEntity entity : entities) {
@@ -47,14 +49,13 @@ public class sqlMigrationBuilder {
             }
 
             for (DiagramRelationship rel : relationships) {
-                if (!relationshipRules.generatesForeignKey(rel))
-                    continue;
-                if (!relationshipRules.foreignKeyOwner(rel).getId().equals(entity.getId()))
-                    continue;
-                String referencedTable = tableNameByEntityId.get(relationshipRules.referencedEntity(rel).getId());
-                String fkColumn = referencedTable + "_id";
-                boolean unique = rel.getRelationshipType() == DiagramRelationship.RelationshipType.ONE_TO_ONE;
-                columnLines.add(fkColumn + " UUID REFERENCES " + referencedTable + "(id)" + (unique ? " UNIQUE" : ""));
+                for (relationshipRules.ForeignKey fk : relationshipRules.foreignKeys(rel)) {
+                    if (!fk.owner().getId().equals(entity.getId()))
+                        continue;
+                    String referencedTable = tableNameByEntityId.get(fk.referenced().getId());
+                    columnLines.add(referencedTable + "_id UUID REFERENCES " + referencedTable + "(id)"
+                            + (fk.unique() ? " UNIQUE" : ""));
+                }
             }
 
             sql.append("CREATE TABLE ").append(tableName).append(" (\n    ");
@@ -63,7 +64,7 @@ public class sqlMigrationBuilder {
         }
 
         for (DiagramRelationship rel : relationships) {
-            if (!relationshipRules.generatesJoinTable(rel))
+            if (!relationshipRules.generatesJoinTable(rel, hostsWithClass))
                 continue;
             String sourceTable = tableNameByEntityId.get(rel.getSourceEntity().getId());
             String targetTable = tableNameByEntityId.get(rel.getTargetEntity().getId());

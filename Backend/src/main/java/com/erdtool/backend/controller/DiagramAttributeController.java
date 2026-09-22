@@ -35,4 +35,9 @@ public class DiagramAttributeController {
     public void delete(@PathVariable UUID id) {
         attributeService.delete(id);
     }
+
+    @PutMapping("/entities/{entityId}/attributes/reorder")
+public void reorder(@PathVariable UUID entityId, @RequestBody List<UUID> orderedIds) {
+    attributeService.reorder(entityId, orderedIds);
+}
 }

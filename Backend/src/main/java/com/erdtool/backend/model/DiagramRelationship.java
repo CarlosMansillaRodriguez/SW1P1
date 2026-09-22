@@ -57,7 +57,7 @@ public class DiagramRelationship {
         COMPOSITION(true, true, true),
         DEPENDENCY(true, false, false),
         REALIZATION(false, false, false),
-        ASSOCIATION_CLASS(false, false, false);
+        ASSOCIATION_CLASS(false, false, true);
 
         private final boolean allowsName;
         private final boolean allowsCardinality;

@@ -1,39 +1,45 @@
 import { useState } from 'react';
 import { ArrowLeftRight } from 'lucide-react';
 import type { AssociationType, DiagramRelationship } from '../types/models';
-import { ASSOCIATION_ORDER, ASSOCIATION_RULES, CARDINALITY_OPTIONS } from '../utils/associationRules';
+import {
+  ASSOCIATION_ORDER, ASSOCIATION_RULES, CARDINALITY_OPTIONS, MANY_TO_MANY_TYPES, deriveRelationshipType,
+} from '../utils/associationRules';
 import './RelationshipEditModal.css';
 
 interface Props {
   relationship: DiagramRelationship;
+  associationClass: { id: string; name: string } | null;
   onClose: () => void;
   onSave: (payload: { associationType: AssociationType; sourceCardinality: string; targetCardinality: string; name: string; relationshipType: DiagramRelationship['relationshipType'] }) => void;
   onDelete: () => void;
   onSwap: () => void;
 }
 
-const RELATIONSHIP_TYPE_LABELS: Record<DiagramRelationship['relationshipType'], string> = {
-  ONE_TO_ONE: 'Uno a uno',
-  ONE_TO_MANY: 'Uno a muchos',
-  MANY_TO_MANY: 'Muchos a muchos',
-};
-
-export default function RelationshipEditModal({ relationship, onClose, onSave, onDelete, onSwap }: Props) {
+export default function RelationshipEditModal({ relationship, associationClass, onClose, onSave, onDelete, onSwap }: Props) {
   const isClass = relationship.associationType === 'ASSOCIATION_CLASS';
+  const hasClass = associationClass !== null;
   const [associationType, setAssociationType] = useState<AssociationType>(relationship.associationType);
-  const [relationshipType, setRelationshipType] = useState(relationship.relationshipType);
   const [sourceCardinality, setSourceCardinality] = useState(relationship.sourceCardinality);
   const [targetCardinality, setTargetCardinality] = useState(relationship.targetCardinality);
-  const [name, setName] = useState(relationship.name || '');
+  // en una asociación con clase intermedia, este nombre es el de la tabla
+  const [name, setName] = useState(associationClass ? associationClass.name : relationship.name || '');
 
   const rule = ASSOCIATION_RULES[associationType];
+  const relationshipType = rule.allowsCardinality
+    ? deriveRelationshipType(sourceCardinality, targetCardinality)
+    : rule.relType;
+  const isManyToMany = rule.allowsCardinality && relationshipType === 'MANY_TO_MANY';
   const sourceOptions = rule.sourceOptions ?? CARDINALITY_OPTIONS;
   const missing = [!rule.allowsVerb && 'verbo', !rule.allowsCardinality && 'cardinalidad'].filter(Boolean).join(' ni ');
+
+  const typeOptions = ASSOCIATION_ORDER.filter(t =>
+    t === 'ASSOCIATION_CLASS' ? isClass : !hasClass || MANY_TO_MANY_TYPES.includes(t)
+  );
 
   const handleTypeChange = (next: AssociationType) => {
     const nextRule = ASSOCIATION_RULES[next];
     setAssociationType(next);
-    if (!nextRule.allowsVerb) setName('');
+    if (!nextRule.allowsVerb && !hasClass) setName('');
     if (!nextRule.allowsCardinality) {
       setSourceCardinality('');
       setTargetCardinality('');
@@ -63,7 +69,7 @@ export default function RelationshipEditModal({ relationship, onClose, onSave, o
             disabled={isClass}
             onChange={e => handleTypeChange(e.target.value as AssociationType)}
           >
-            {ASSOCIATION_ORDER.filter(t => t !== 'ASSOCIATION_CLASS' || isClass).map(t => (
+            {typeOptions.map(t => (
               <option key={t} value={t}>{ASSOCIATION_RULES[t].label}</option>
             ))}
           </select>
@@ -75,25 +81,18 @@ export default function RelationshipEditModal({ relationship, onClose, onSave, o
         {rule.sourceOptions && (
           <p className="modal-hint">El extremo del "todo" solo admite cardinalidad {rule.sourceOptions.join(' o ')}.</p>
         )}
-
-        {rule.persists && (
-          <label className="modal-field">
-            Cardinalidad (para generar el backend)
-            <select value={relationshipType} onChange={e => setRelationshipType(e.target.value as DiagramRelationship['relationshipType'])}>
-              {Object.entries(RELATIONSHIP_TYPE_LABELS).map(([value, label]) => (
-                <option key={value} value={value}>{label}</option>
-              ))}
-            </select>
-          </label>
-        )}
-
-        {rule.persists && relationshipType === 'MANY_TO_MANY' && (
+        {hasClass && (
           <p className="modal-hint">
-            Al generar el backend, esto crea automáticamente una tabla intermedia (tabla de unión) en la base de datos — no hace falta que la dibujes vos.
+            Muchos a muchos con tabla intermedia: la cardinalidad no se puede cambiar. La línea no lleva verbo ni números; el nombre es el de la tabla.
+          </p>
+        )}
+        {isManyToMany && !hasClass && (
+          <p className="modal-hint">
+            Muchos a muchos: al guardar se crea la tabla intermedia (te pide el nombre). La línea no lleva verbo ni cardinalidad.
           </p>
         )}
 
-        {rule.allowsCardinality && (
+        {rule.allowsCardinality && !hasClass && (
           <div className="modal-field-row">
             <label className="modal-field">
               Cardinalidad origen
@@ -111,7 +110,14 @@ export default function RelationshipEditModal({ relationship, onClose, onSave, o
           </div>
         )}
 
-        {rule.allowsVerb && (
+        {hasClass && (
+          <label className="modal-field">
+            Nombre de la tabla intermedia
+            <input value={name} onChange={e => setName(e.target.value)} />
+          </label>
+        )}
+
+        {rule.allowsVerb && !isManyToMany && !hasClass && (
           <label className="modal-field">
             Verbo (ej: "pertenece a")
             <input value={name} onChange={e => setName(e.target.value)} placeholder="pertenece a" />

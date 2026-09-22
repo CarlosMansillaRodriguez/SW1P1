@@ -1,10 +1,11 @@
 import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Plus, LogOut, KeyRound } from 'lucide-react';
+import { Plus, LogOut, KeyRound, Moon, Sun } from 'lucide-react';
 import * as projectApi from '../api/projectApi';
 import type { Project } from '../types/models';
 import { useAuth } from '../context/AuthContext';
 import './ProjectsPage.css';
+import { useTheme } from '../context/ThemeContext';
 
 export default function ProjectsPage() {
   const [projects, setProjects] = useState<Project[]>([]);
@@ -12,6 +13,7 @@ export default function ProjectsPage() {
   const [joinCode, setJoinCode] = useState('');
   const navigate = useNavigate();
   const { user, logout } = useAuth();
+  const { theme, toggleTheme } = useTheme();
 
   const load = async () => {
     const data = await projectApi.getMyProjects();
@@ -40,6 +42,9 @@ export default function ProjectsPage() {
         <span className="projects-navbar-title">ERDTool</span>
         <div className="projects-navbar-right">
           <span className="projects-navbar-user">{user?.name}</span>
+          <button className="btn" onClick={toggleTheme} title={theme === 'light' ? 'Modo oscuro' : 'Modo claro'}>
+            {theme === 'light' ? <Moon size={14} /> : <Sun size={14} />}
+          </button>
           <button className="btn" onClick={logout}>
             <LogOut size={14} /> Cerrar sesión
           </button>

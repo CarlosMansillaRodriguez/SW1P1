@@ -68,7 +68,7 @@ export default function Sidebar({ onAddEntity, activeAssociation, onSelectAssoci
         <div className="sidebar-hint-box">
           Modo activo: <strong>{ASSOCIATION_RULES[activeAssociation].label}</strong>.{' '}
           {activeAssociation === 'ASSOCIATION_CLASS'
-            ? 'Hacé click sobre la línea de una asociación para colgarle la clase.'
+            ? 'Arrastrá de una tabla a otra: se crea la asociación muchos a muchos con su tabla intermedia. También podés hacer click sobre una asociación existente.'
             : 'Arrastrá desde una tabla a otra para crear la relación.'}
         </div>
       )}

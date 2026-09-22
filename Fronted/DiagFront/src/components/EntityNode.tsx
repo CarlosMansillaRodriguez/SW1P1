@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { Handle, Position } from '@xyflow/react';
-import { Key, Hash, Trash2, Pencil } from 'lucide-react';
+import { Key, Hash, Trash2, Pencil, ArrowUp, ArrowDown } from 'lucide-react';
 import type { DiagramAttribute } from '../types/models';
 import './EntityNode.css';
 
@@ -12,6 +12,7 @@ interface EntityNodeData {
   onDeleteEntity: () => void;
   onEditAttribute: (attribute: DiagramAttribute) => void;
   onDeleteAttribute: (attributeId: string) => void;
+  onMoveAttribute: (attributeId: string, direction: 'up' | 'down') => void;
 }
 
 export default function EntityNode({ data }: { data: EntityNodeData }) {
@@ -76,20 +77,38 @@ export default function EntityNode({ data }: { data: EntityNodeData }) {
         {data.attributes.length === 0 && (
           <div className="entity-node-empty">Sin atributos</div>
         )}
-        {data.attributes.map(attr => (
+        {data.attributes.map((attr, index) => (
           <div key={attr.id} className="entity-node-row">
             <span className="entity-node-attr-name" onClick={() => data.onEditAttribute(attr)}>
               {attr.primaryKey && <Key size={11} className="entity-node-pk-icon" />}
               {attr.name}
             </span>
             <span className="entity-node-attr-type">{attr.dataType}</span>
-            <button
-              className="entity-node-row-delete"
-              title="Eliminar atributo"
-              onClick={() => data.onDeleteAttribute(attr.id)}
-            >
-              ×
-            </button>
+            <div className="entity-node-row-actions">
+              <button
+                className="entity-node-move-btn"
+                title="Mover arriba"
+                disabled={index === 0}
+                onClick={() => data.onMoveAttribute(attr.id, 'up')}
+              >
+                <ArrowUp size={12} />
+              </button>
+              <button
+                className="entity-node-move-btn"
+                title="Mover abajo"
+                disabled={index === data.attributes.length - 1}
+                onClick={() => data.onMoveAttribute(attr.id, 'down')}
+              >
+                <ArrowDown size={12} />
+              </button>
+              <button
+                className="entity-node-row-delete"
+                title="Eliminar atributo"
+                onClick={() => data.onDeleteAttribute(attr.id)}
+              >
+                ×
+              </button>
+            </div>
           </div>
         ))}
       </div>

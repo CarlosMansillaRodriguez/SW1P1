@@ -2,6 +2,19 @@ import type { AssociationType, DiagramRelationship } from '../types/models';
 
 export const CARDINALITY_OPTIONS = ['0..1', '1', '0..*', '1..*', '*'];
 
+// Tipos que pueden ser muchos a muchos y, por lo tanto, llevar una clase intermedia
+export const MANY_TO_MANY_TYPES: AssociationType[] = ['ASSOCIATION', 'DIRECTED_ASSOCIATION', 'AGGREGATION'];
+
+const isMany = (cardinality: string) => cardinality.includes('*');
+
+// El tipo sale de las cardinalidades: ambos extremos "muchos" = muchos a muchos
+export const deriveRelationshipType = (source: string, target: string): DiagramRelationship['relationshipType'] => {
+  const s = isMany(source);
+  const t = isMany(target);
+  if (s && t) return 'MANY_TO_MANY';
+  return s || t ? 'ONE_TO_MANY' : 'ONE_TO_ONE';
+};
+
 export interface AssociationRule {
   label: string;
   hint: string;
@@ -62,9 +75,9 @@ export const ASSOCIATION_RULES: Record<AssociationType, AssociationRule> = {
     defaultSource: '', defaultTarget: '', relType: 'ONE_TO_MANY',
   },
   ASSOCIATION_CLASS: {
-    label: 'Clase de asoc.', hint: 'Punteada · clic en asociación',
+    label: 'Clase de asoc.', hint: 'Muchos a muchos + tabla intermedia',
     dashed: true,
-    allowsVerb: false, allowsCardinality: false, persists: false,
+    allowsVerb: false, allowsCardinality: false, persists: true,
     defaultSource: '', defaultTarget: '', relType: 'ONE_TO_MANY',
   },
 };

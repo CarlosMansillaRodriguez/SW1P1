@@ -1,10 +1,10 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import type { ChangeEvent, MouseEvent } from 'react';
 import { useParams, Link } from 'react-router-dom';
-import { Download, Upload, Image as ImageIcon, ChevronDown, Server } from 'lucide-react';
+import { Download, Upload, Image as ImageIcon, ChevronDown, Server, Moon, Sun } from 'lucide-react';
 import { importAiImage } from '../api/aiApi';
 import { downloadGeneratedBackend } from '../api/generatorApi';
-import { ASSOCIATION_RULES } from '../utils/associationRules';
+import { ASSOCIATION_RULES, MANY_TO_MANY_TYPES } from '../utils/associationRules';
 import {
   ReactFlow,
   Background,
@@ -16,10 +16,10 @@ import {
   applyNodeChanges,
   addEdge,
 } from '@xyflow/react';
-import type { Node, Edge, NodeChange, Connection } from '@xyflow/react';
+import type { Node, Edge, NodeChange, Connection, ReactFlowInstance } from '@xyflow/react';
 import '@xyflow/react/dist/style.css';
 import { getEntities, getRelationships, createEntity, renameEntity, deleteEntity, moveEntity, getEntityById } from '../api/diagramApi';
-import { getAttributes, createAttribute, updateAttribute, deleteAttribute } from '../api/attributeApi';
+import { getAttributes, createAttribute, updateAttribute, deleteAttribute, reorderAttributes } from '../api/attributeApi';
 import { createRelationship, updateRelationship, deleteRelationship, swapRelationshipDirection } from '../api/relationshipApi';
 import { exportArchitect, importArchitect } from '../api/architectApi';
 import EntityNode from '../components/EntityNode';
@@ -31,13 +31,21 @@ import AttributeEditModal from '../components/AttributeEditModal';
 import AiChatPanel from '../components/AiChatPanel';
 import type { AiCommandResult, AssociationType, DiagramAttribute, DiagramRelationship } from '../types/models';
 import './DiagramPage.css';
+import { useTheme } from '../context/ThemeContext';
 
 const nodeTypes = { entity: EntityNode };
 const edgeTypes = { association: AssociationEdge };
 
-const HOST_TYPES: AssociationType[] = ['ASSOCIATION', 'DIRECTED_ASSOCIATION', 'AGGREGATION', 'COMPOSITION'];
+interface AssociationClassInfo {
+  id: string;
+  name: string;
+}
 
-function relationshipToEdge(r: DiagramRelationship): Edge {
+function entityLabel(nodes: Node[], id: string): string {
+  return (nodes.find(n => n.id === id)?.data as { label?: string } | undefined)?.label ?? '';
+}
+
+function relationshipToEdge(r: DiagramRelationship, hostedClass?: AssociationClassInfo): Edge {
   return {
     id: r.id,
     source: r.sourceEntity.id,
@@ -51,8 +59,21 @@ function relationshipToEdge(r: DiagramRelationship): Edge {
       verb: r.name,
       assocSourceId: r.targetRelationship?.sourceEntity.id,
       assocTargetId: r.targetRelationship?.targetEntity.id,
+      classId: hostedClass?.id,
+      className: hostedClass?.name,
     },
   };
+}
+
+// Cada asociación conoce la tabla intermedia (clase de asociación) que tiene colgada, si la tiene
+function relationshipsToEdges(relationships: DiagramRelationship[]): Edge[] {
+  const classByHost = new Map<string, AssociationClassInfo>();
+  relationships.forEach(r => {
+    if (r.associationType === 'ASSOCIATION_CLASS' && r.targetRelationship) {
+      classByHost.set(r.targetRelationship.id, { id: r.sourceEntity.id, name: r.sourceEntity.name });
+    }
+  });
+  return relationships.map(r => relationshipToEdge(r, classByHost.get(r.id)));
 }
 
 export default function DiagramPage() {
@@ -61,6 +82,7 @@ export default function DiagramPage() {
   const [edges, setEdges] = useEdgesState<Edge>([]);
   const [activeAssociation, setActiveAssociation] = useState<AssociationType | null>(null);
   const [editingRelationship, setEditingRelationship] = useState<DiagramRelationship | null>(null);
+  const [editingClass, setEditingClass] = useState<AssociationClassInfo | null>(null);
   const [editingAttribute, setEditingAttribute] = useState<DiagramAttribute | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const imageInputRef = useRef<HTMLInputElement>(null);
@@ -68,6 +90,9 @@ export default function DiagramPage() {
   const [importMenuOpen, setImportMenuOpen] = useState(false);
   const [importingImage, setImportingImage] = useState(false);
   const [generatingBackend, setGeneratingBackend] = useState(false);
+  const { theme, toggleTheme } = useTheme();
+  const [flowInstance, setFlowInstance] = useState<ReactFlowInstance | null>(null);
+  const flowWrapperRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     const handleClickOutside = (e: Event) => {
@@ -103,6 +128,23 @@ export default function DiagramPage() {
     loadDiagram();
   }, []);
 
+  const handleMoveAttribute = useCallback((entityId: string, attributeId: string, direction: 'up' | 'down') => {
+    setNodes((nds: Node[]) => {
+      const node = nds.find(n => n.id === entityId);
+      if (!node) return nds;
+      const attrs = (node.data as { attributes: DiagramAttribute[] }).attributes;
+      const index = attrs.findIndex(a => a.id === attributeId);
+      const swapWith = direction === 'up' ? index - 1 : index + 1;
+      if (index < 0 || swapWith < 0 || swapWith >= attrs.length) return nds;
+
+      const reordered = [...attrs];
+      [reordered[index], reordered[swapWith]] = [reordered[swapWith], reordered[index]];
+      reorderAttributes(entityId, reordered.map(a => a.id));
+
+      return nds.map(n => n.id === entityId ? { ...n, data: { ...n.data, attributes: reordered } } : n);
+    });
+  }, [setNodes]);
+
   const buildNode = useCallback((entity: { id: string; name: string; posX: number; posY: number }, attributes: DiagramAttribute[]): Node => ({
     id: entity.id,
     position: { x: entity.posX, y: entity.posY },
@@ -115,8 +157,9 @@ export default function DiagramPage() {
       onDeleteEntity: () => handleDeleteEntity(entity.id),
       onEditAttribute: (attribute: DiagramAttribute) => setEditingAttribute(attribute),
       onDeleteAttribute: (attributeId: string) => handleDeleteAttribute(attributeId),
+      onMoveAttribute: (attributeId: string, direction: 'up' | 'down') => handleMoveAttribute(entity.id, attributeId, direction),
     },
-  }), [handleAddAttribute, handleRenameEntity, handleDeleteEntity, handleDeleteAttribute]);
+  }), [handleAddAttribute, handleRenameEntity, handleDeleteEntity, handleDeleteAttribute, handleMoveAttribute]);
 
   const loadDiagram = useCallback(async () => {
     if (!projectId) return;
@@ -129,7 +172,7 @@ export default function DiagramPage() {
     }));
 
     setNodes(nodesWithAttrs);
-    setEdges(relationships.map(relationshipToEdge));
+    setEdges(relationshipsToEdges(relationships));
   }, [projectId, setNodes, setEdges, buildNode]);
 
   useEffect(() => { loadDiagram(); }, [loadDiagram]);
@@ -153,7 +196,7 @@ export default function DiagramPage() {
 
     if (result.relationshipsChanged && projectId) {
       const relationships = await getRelationships(projectId);
-      setEdges(relationships.map(relationshipToEdge));
+      setEdges(relationshipsToEdges(relationships));
     }
   }, [projectId, setNodes, setEdges, buildNode]);
 
@@ -166,61 +209,107 @@ export default function DiagramPage() {
     });
   }, [setNodes]);
 
+  // Crea la tabla intermedia (clase de asociación) y la cuelga del centro de la asociación
+  const attachAssociationClass = useCallback(async (associationId: string, sourceId: string, targetId: string, name: string) => {
+    if (!projectId) return;
+    const a = nodes.find(n => n.id === sourceId);
+    const b = nodes.find(n => n.id === targetId);
+    const x = a && b ? Math.round((a.position.x + b.position.x) / 2) : 100;
+    const y = a && b ? Math.round((a.position.y + b.position.y) / 2) + 180 : 100;
+
+    const entity = await createEntity(projectId, name);
+    await moveEntity(entity.id, x, y);
+
+    const rule = ASSOCIATION_RULES.ASSOCIATION_CLASS;
+    await createRelationship(projectId, entity.id, sourceId, {
+      relationshipType: rule.relType,
+      associationType: 'ASSOCIATION_CLASS',
+      sourceCardinality: rule.defaultSource,
+      targetCardinality: rule.defaultTarget,
+    }, associationId);
+
+    await loadDiagram();
+  }, [projectId, nodes, loadDiagram]);
+
   const onConnect = useCallback(async (connection: Connection) => {
     if (!connection.source || !connection.target || !projectId) return;
     const type = activeAssociation ?? 'ASSOCIATION';
     const rule = ASSOCIATION_RULES[type];
 
+    // Clase de asociación: se dibuja la asociación (muchos a muchos) y sale su tabla intermedia
     if (type === 'ASSOCIATION_CLASS') {
-      alert('Para crear una clase de asociación hacé click sobre la línea de una asociación.');
+      if (connection.source === connection.target) {
+        alert('La clase de asociación necesita dos tablas distintas.');
+        return;
+      }
+      const suggested = `${entityLabel(nodes, connection.source)}_${entityLabel(nodes, connection.target)}`;
+      const name = prompt('Nombre de la tabla intermedia:', suggested)?.trim();
+      if (!name) return;
+
+      const association = await createRelationship(projectId, connection.source, connection.target, {
+        relationshipType: 'MANY_TO_MANY',
+        associationType: 'ASSOCIATION',
+        sourceCardinality: '*',
+        targetCardinality: '*',
+      });
+      await attachAssociationClass(association.id, connection.source, connection.target, name);
       return;
     }
+
     if (connection.source === connection.target && (type === 'GENERALIZATION' || type === 'REALIZATION')) {
       alert(`${rule.label} no puede unir una tabla consigo misma.`);
       return;
     }
 
-    const relationship = await createRelationship(projectId, connection.source, connection.target, {
-      relationshipType: rule.relType,
-      associationType: type,
-      sourceCardinality: rule.defaultSource,
-      targetCardinality: rule.defaultTarget,
-    });
+    try {
+      const relationship = await createRelationship(projectId, connection.source, connection.target, {
+        relationshipType: rule.relType,
+        associationType: type,
+        sourceCardinality: rule.defaultSource,
+        targetCardinality: rule.defaultTarget,
+      });
+      setEdges((eds: Edge[]) => addEdge(relationshipToEdge(relationship), eds));
+    } catch {
+      alert('No se pudo crear la relación. Si es una generalización, revisá que no forme un ciclo de herencia.');
+    }
+  }, [setEdges, projectId, activeAssociation, nodes, attachAssociationClass]);
 
-    setEdges((eds: Edge[]) => addEdge(relationshipToEdge(relationship), eds));
-  }, [setEdges, projectId, activeAssociation]);
-
+  // Modo "Clase de asoc." sobre una asociación que ya existe
   const onEdgeClick = useCallback(async (_: MouseEvent, edge: Edge) => {
-  if (activeAssociation !== 'ASSOCIATION_CLASS' || !projectId) return;
-  const data = edge.data as { associationType: AssociationType };
-  if (!HOST_TYPES.includes(data.associationType)) {
-    alert('La clase de asociación solo puede colgar de una asociación, agregación o composición.');
-    return;
-  }
-  const name = prompt('Nombre de la clase de asociación:');
-  if (!name) return;
+    if (activeAssociation !== 'ASSOCIATION_CLASS' || !projectId) return;
+    const data = edge.data as { associationType: AssociationType; classId?: string };
+    if (!MANY_TO_MANY_TYPES.includes(data.associationType)) {
+      alert('La clase de asociación solo puede colgar de una asociación, asociación dirigida o agregación.');
+      return;
+    }
+    if (data.classId) {
+      alert('Esta asociación ya tiene su tabla intermedia.');
+      return;
+    }
+    const suggested = `${entityLabel(nodes, edge.source)}_${entityLabel(nodes, edge.target)}`;
+    const name = prompt('Nombre de la tabla intermedia (la asociación pasará a ser de muchos a muchos):', suggested)?.trim();
+    if (!name) return;
 
-  const a = nodes.find(n => n.id === edge.source);
-  const b = nodes.find(n => n.id === edge.target);
-  const x = a && b ? Math.round((a.position.x + b.position.x) / 2) : 100;
-  const y = a && b ? Math.round((a.position.y + b.position.y) / 2) + 180 : 100;
-
-  const entity = await createEntity(projectId, name);
-  await moveEntity(entity.id, x, y);
-
-  const rule = ASSOCIATION_RULES.ASSOCIATION_CLASS;
-  await createRelationship(projectId, entity.id, edge.source, {
-    relationshipType: rule.relType,
-    associationType: 'ASSOCIATION_CLASS',
-    sourceCardinality: rule.defaultSource,
-    targetCardinality: rule.defaultTarget,
-  }, edge.id);
-
-  await loadDiagram();
-}, [activeAssociation, projectId, nodes, loadDiagram]);
+    await updateRelationship(edge.id, {
+      relationshipType: 'MANY_TO_MANY',
+      associationType: data.associationType,
+      sourceCardinality: '*',
+      targetCardinality: '*',
+    });
+    await attachAssociationClass(edge.id, edge.source, edge.target, name);
+  }, [activeAssociation, projectId, nodes, attachAssociationClass]);
 
   const onEdgeDoubleClick = useCallback((_: MouseEvent, edge: Edge) => {
-    const data = edge.data as { associationType: AssociationType; relationshipType: DiagramRelationship['relationshipType']; sourceCardinality: string; targetCardinality: string; verb?: string };
+    const data = edge.data as {
+      associationType: AssociationType;
+      relationshipType: DiagramRelationship['relationshipType'];
+      sourceCardinality: string;
+      targetCardinality: string;
+      verb?: string;
+      classId?: string;
+      className?: string;
+    };
+    setEditingClass(data.classId ? { id: data.classId, name: data.className ?? '' } : null);
     setEditingRelationship({
       id: edge.id,
       name: data.verb,
@@ -233,25 +322,53 @@ export default function DiagramPage() {
     });
   }, []);
 
+  const closeRelationshipModal = () => {
+    setEditingRelationship(null);
+    setEditingClass(null);
+  };
+
   const handleSaveRelationship = async (payload: { associationType: AssociationType; sourceCardinality: string; targetCardinality: string; name: string; relationshipType: DiagramRelationship['relationshipType'] }) => {
     if (!editingRelationship) return;
-    const updated = await updateRelationship(editingRelationship.id, payload);
-    setEdges((eds: Edge[]) => eds.map(e => e.id === updated.id ? relationshipToEdge(updated) : e));
-    setEditingRelationship(null);
+    const { id, sourceEntity, targetEntity } = editingRelationship;
+
+    // muchos a muchos = asociación + tabla intermedia con nombre
+    let newClassName: string | null = null;
+    if (payload.relationshipType === 'MANY_TO_MANY' && payload.associationType !== 'ASSOCIATION_CLASS' && !editingClass) {
+      const suggested = `${entityLabel(nodes, sourceEntity.id)}_${entityLabel(nodes, targetEntity.id)}`;
+      newClassName = prompt('Nombre de la tabla intermedia:', suggested)?.trim() || null;
+      if (!newClassName) return;
+    }
+
+    try {
+      await updateRelationship(id, payload);
+      if (editingClass && payload.name.trim() && payload.name.trim() !== editingClass.name) {
+        await renameEntity(editingClass.id, payload.name.trim());
+      }
+      if (newClassName) {
+        await attachAssociationClass(id, sourceEntity.id, targetEntity.id, newClassName);
+      } else {
+        await loadDiagram();
+      }
+      closeRelationshipModal();
+    } catch {
+      alert('No se pudo guardar la relación. Si es una generalización, revisá que no forme un ciclo de herencia.');
+    }
   };
 
   const handleDeleteRelationship = async () => {
-  if (!editingRelationship) return;
-  await deleteRelationship(editingRelationship.id);
-  setEditingRelationship(null);
-  await loadDiagram();
-};
+    if (!editingRelationship) return;
+    await deleteRelationship(editingRelationship.id);
+    // sin la asociación, su tabla intermedia no tiene sentido
+    if (editingClass) await deleteEntity(editingClass.id);
+    closeRelationshipModal();
+    await loadDiagram();
+  };
 
   const handleSwapRelationship = async () => {
     if (!editingRelationship) return;
-    const updated = await swapRelationshipDirection(editingRelationship.id);
-    setEdges((eds: Edge[]) => eds.map(e => e.id === updated.id ? relationshipToEdge(updated) : e));
-    setEditingRelationship(null);
+    await swapRelationshipDirection(editingRelationship.id);
+    closeRelationshipModal();
+    await loadDiagram();
   };
 
   const handleSaveAttribute = async (changes: Partial<DiagramAttribute>) => {
@@ -271,7 +388,17 @@ export default function DiagramPage() {
     if (!projectId) return;
     const name = prompt('Nombre de la nueva tabla:');
     if (!name) return;
-    await createEntity(projectId, name);
+    const entity = await createEntity(projectId, name);
+
+    if (flowInstance && flowWrapperRef.current) {
+      const rect = flowWrapperRef.current.getBoundingClientRect();
+      const center = flowInstance.screenToFlowPosition({
+        x: rect.left + rect.width / 2,
+        y: rect.top + rect.height / 2,
+      });
+      await moveEntity(entity.id, Math.round(center.x - 110), Math.round(center.y - 40));
+    }
+
     loadDiagram();
   };
 
@@ -376,10 +503,13 @@ export default function DiagramPage() {
               style={{ display: 'none' }}
               onChange={handleImportImageChange}
             />
+            <button className="btn" onClick={toggleTheme} title={theme === 'light' ? 'Modo oscuro' : 'Modo claro'}>
+              {theme === 'light' ? <Moon size={14} /> : <Sun size={14} />}
+            </button>
             <Link to="/projects" className="btn">Volver a proyectos</Link>
           </div>
         </div>
-        <div className="diagram-flow-wrapper">
+        <div className="diagram-flow-wrapper" ref={flowWrapperRef}>
           <ReactFlow
             nodes={nodes}
             edges={edges}
@@ -389,12 +519,13 @@ export default function DiagramPage() {
             onConnect={onConnect}
             onEdgeClick={onEdgeClick}
             onEdgeDoubleClick={onEdgeDoubleClick}
+            onInit={setFlowInstance}
             connectionMode={ConnectionMode.Loose}
             fitView
           >
-            <Background />
+            <Background color={theme === 'dark' ? '#334155' : '#e2e8f0'} />
             <Controls />
-            <MiniMap />
+            <MiniMap maskColor={theme === 'dark' ? 'rgba(15,23,42,0.6)' : 'rgba(240,240,240,0.6)'} />
           </ReactFlow>
         </div>
         {projectId && <AiChatPanel projectId={projectId} onResult={applyAiResult} />}
@@ -403,7 +534,8 @@ export default function DiagramPage() {
       {editingRelationship && (
         <RelationshipEditModal
           relationship={editingRelationship}
-          onClose={() => setEditingRelationship(null)}
+          associationClass={editingClass}
+          onClose={closeRelationshipModal}
           onSave={handleSaveRelationship}
           onDelete={handleDeleteRelationship}
           onSwap={handleSwapRelationship}

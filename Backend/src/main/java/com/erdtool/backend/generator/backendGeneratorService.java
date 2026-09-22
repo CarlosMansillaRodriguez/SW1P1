@@ -94,13 +94,13 @@ public class backendGeneratorService {
                     attr.isPrimaryKey()));
         }
         for (DiagramRelationship rel : relationships) {
-            if (!relationshipRules.generatesForeignKey(rel))
-                continue;
-            if (!relationshipRules.foreignKeyOwner(rel).getId().equals(entity.getId()))
-                continue;
-            String referencedTable = tableNameByEntityId.get(relationshipRules.referencedEntity(rel).getId());
-            fields.add(new generatedField(nameUtils.toFieldName(referencedTable) + "Id", "UUID",
-                    referencedTable + "_id", false));
+            for (relationshipRules.ForeignKey fk : relationshipRules.foreignKeys(rel)) {
+                if (!fk.owner().getId().equals(entity.getId()))
+                    continue;
+                String referencedTable = tableNameByEntityId.get(fk.referenced().getId());
+                fields.add(new generatedField(nameUtils.toFieldName(referencedTable) + "Id", "UUID",
+                        referencedTable + "_id", false));
+            }
         }
         return fields;
     }
